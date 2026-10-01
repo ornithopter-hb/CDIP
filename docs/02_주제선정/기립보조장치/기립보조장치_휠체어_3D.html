@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>보급형 수동 휠체어 3D</title>
+<style>
+  body { margin: 0; font-family: "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; background: #f4f4f2; color: #222; }
+  main { max-width: 1100px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 20px; margin: 4px 0 4px; }
+  p { margin: 4px 0; font-size: 14px; line-height: 1.5; }
+  #view { width: 100%; height: 560px; background: #fff; border: 1px solid #ccc; display: block; touch-action: none; }
+  .bar { margin: 8px 0; font-size: 14px; }
+  .bar button { margin-right: 4px; }
+  table { border-collapse: collapse; font-size: 13px; margin: 8px 0 16px; }
+  th, td { border: 1px solid #bbb; padding: 4px 8px; text-align: left; }
+  th { background: #e8e8e4; }
+  small { color: #555; }
+</style>
+</head>
+<body>
+<main>
+  <h1>보급형 수동 휠체어 3D (기립 기능 없음)</h1>
+  <p>기준 모델: 탄탄 스틸 휠체어 WYK874-41 (일반 접이식, 스틸 기본형, 판매가 160,000원). 아래 치수는 판매 페이지 <b>제품상세규격</b> 표의 값이며, 표에 없는 부위(파이프 굵기, 팔걸이 높이, 발판 위치 등)는 사진을 보고 잡은 <b>임의값</b>이다.</p>
+  <p><small>마우스 왼쪽 드래그: 회전 · 휠: 확대/축소 · 오른쪽 드래그: 이동</small></p>
+  <div class="bar">
+    <button data-view="iso">등각</button>
+    <button data-view="side">측면</button>
+    <button data-view="front">정면</button>
+    <button data-view="top">위</button>
+    <label><input type="checkbox" id="dim" checked> 치수 표시</label>
+  </div>
+  <canvas id="view"></canvas>
+
+  <h2 style="font-size:16px">규격 (단위 cm)</h2>
+  <table>
+    <tr><th>항목</th><th>값</th><th>근거</th></tr>
+    <tr><td>전폭</td><td>60 (좌폭 46 옵션: 65)</td><td>제품상세규격</td></tr>
+    <tr><td>접은 폭</td><td>27</td><td>제품상세규격</td></tr>
+    <tr><td>좌석 폭</td><td>41 (옵션 46)</td><td>제품상세규격</td></tr>
+    <tr><td>뒷바퀴 지름</td><td>59</td><td>제품상세규격</td></tr>
+    <tr><td>앞바퀴 지름</td><td>20 (PVC 8인치)</td><td>제품상세규격, 상세설명</td></tr>
+    <tr><td>좌석 높이 (바닥–좌면)</td><td>47</td><td>제품상세규격 (아이콘으로 판단)</td></tr>
+    <tr><td>전고</td><td>91</td><td>제품상세규격</td></tr>
+    <tr><td>전장</td><td>104</td><td>제품상세규격</td></tr>
+    <tr><td>좌석 깊이</td><td>40</td><td>제품상세규격</td></tr>
+    <tr><td>등받이 높이</td><td>42</td><td>제품상세규격</td></tr>
+    <tr><td>최대 하중</td><td>120 kg</td><td>제품상세규격</td></tr>
+    <tr><td>무게 (NW / GW)</td><td>20 kg / 22 kg</td><td>제품상세규격</td></tr>
+    <tr><td>구성</td><td colspan="2">플라스틱 손잡이, 토글방식 브레이크, 플라스틱 발판, 공기 주입 필요없는 탄력있는 바퀴(노튜브), 간편한 뒤 주머니, 손잡이, 스폰지 팔받침, pvc 8인치 앞바퀴, 2개 지지대 (상세설명)</td></tr>
+  </table>
+  <p><small>출처: 삼원메디 상품 페이지 "탄탄 스틸 휠체어 WYK874" https://swmedi.co.kr/product/detail.html?product_no=23343 (2026-09-30 확인)</small></p>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// 좌표계: x = 좌우(폭), y = 위, z = 앞(+)/뒤(-). 단위 m, 원점 = 바닥 중앙
+const S = {
+  seatW: 0.41, seatD: 0.40, seatH: 0.47, backH: 0.42,
+  rearR: 0.295, castR: 0.10, overallW: 0.60, overallL: 1.04, overallH: 0.91
+};
+const sx = S.seatW / 2 + 0.012;   // 측면 프레임 x
+const zr = -0.17;                 // 뒷바퀴 축 z
+const wx = 0.255;                 // 뒷바퀴 타이어 중심면 x
+const zc = 0.23;                  // 앞바퀴 중심 z
+const tubeR = 0.011;              // 프레임 파이프 반지름 (임의값)
+
+const canvas = document.getElementById('view');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xffffff);
+const camera = new THREE.PerspectiveCamera(35, 1, 0.01, 50);
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x888888, 0.8));
+const sun = new THREE.DirectionalLight(0xffffff, 0.7);
+sun.position.set(2, 3, 2);
+scene.add(sun);
+const grid = new THREE.GridHelper(2, 20, 0xbbbbbb, 0xdddddd);
+scene.add(grid);
+
+const M = {
+  steel: new THREE.MeshStandardMaterial({ color: 0xd4d8dc, metalness: 0.35, roughness: 0.35 }),
+  black: new THREE.MeshStandardMaterial({ color: 0x1e1e1e, roughness: 0.8 }),
+  tire:  new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.9 }),
+  grey:  new THREE.MeshStandardMaterial({ color: 0xa4a9ae, metalness: 0.3, roughness: 0.45 }),
+  guard: new THREE.MeshStandardMaterial({ color: 0x5aa0b8, transparent: true, opacity: 0.35, side: THREE.DoubleSide }),
+  plastic: new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.6 })
+};
+const chair = new THREE.Group();
+scene.add(chair);
+
+// 두 점 사이 파이프
+function rod(a, b, r = tubeR, mat = M.steel, parent = chair) {
+  const A = new THREE.Vector3(...a), B = new THREE.Vector3(...b);
+  const len = A.distanceTo(B);
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 16), mat);
+  m.position.copy(A).add(B).multiplyScalar(0.5);
+  m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), B.clone().sub(A).normalize());
+  parent.add(m);
+  return m;
+}
+// 꺾인 파이프 (관절에 구)
+function pipe(pts, r = tubeR, mat = M.steel, parent = chair) {
+  for (let i = 0; i < pts.length - 1; i++) rod(pts[i], pts[i + 1], r, mat, parent);
+  for (let i = 1; i < pts.length - 1; i++) {
+    const s = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 12), mat);
+    s.position.set(...pts[i]);
+    parent.add(s);
+  }
+}
+function box(w, h, d, pos, mat, parent = chair) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+  m.position.set(...pos);
+  parent.add(m);
+  return m;
+}
+
+// ---- 뒷바퀴 (지름 59 cm, 통타이어) + 핸드림 ----
+function rearWheel(side) {
+  const g = new THREE.Group();
+  const R = S.rearR, tr = 0.018;
+  const tire = new THREE.Mesh(new THREE.TorusGeometry(R - tr, tr, 16, 64), M.tire);
+  tire.rotation.y = Math.PI / 2;
+  g.add(tire);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(R - 2 * tr - 0.006, 0.008, 8, 64), M.steel);
+  rim.rotation.y = Math.PI / 2;
+  g.add(rim);
+  const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.06, 20), M.grey);
+  hub.rotation.z = Math.PI / 2;
+  g.add(hub);
+  for (let i = 0; i < 24; i++) {
+    const t = i / 24 * Math.PI * 2, off = (i % 2 ? 0.025 : -0.025);
+    const rr = R - 2 * tr - 0.01;
+    rod([off, 0, 0], [0, Math.sin(t) * rr, Math.cos(t) * rr], 0.0015, M.grey, g);
+  }
+  // 핸드림 (바퀴 바깥쪽)
+  const hr = R - 0.035, hx = 0.035 * side;
+  const handrim = new THREE.Mesh(new THREE.TorusGeometry(hr, 0.009, 10, 64), M.steel);
+  handrim.rotation.y = Math.PI / 2;
+  handrim.position.x = hx;
+  g.add(handrim);
+  for (let i = 0; i < 4; i++) {
+    const t = i / 4 * Math.PI * 2 + 0.4;
+    rod([0, Math.sin(t) * hr, Math.cos(t) * hr], [hx, Math.sin(t) * hr, Math.cos(t) * hr], 0.004, M.steel, g);
+  }
+  g.position.set(side * wx, S.rearR, zr);
+  chair.add(g);
+  // 축
+  rod([side * sx, S.rearR, zr], [side * (wx + 0.03), S.rearR, zr], 0.008, M.grey);
+}
+
+// ---- 앞바퀴 캐스터 (지름 20 cm) ----
+function caster(side) {
+  const x = side * sx, stemZ = zc + 0.035;
+  const wheel = new THREE.Mesh(new THREE.CylinderGeometry(S.castR, S.castR, 0.028, 32), M.tire);
+  wheel.rotation.z = Math.PI / 2;
+  wheel.position.set(x, S.castR, zc);
+  chair.add(wheel);
+  const hubc = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.03, 24), M.plastic);
+  hubc.rotation.z = Math.PI / 2;
+  hubc.position.set(x, S.castR, zc);
+  chair.add(hubc);
+  // 포크
+  for (const d of [-1, 1]) {
+    pipe([[x + d * 0.022, S.castR, zc], [x + d * 0.022, 0.215, stemZ], [x, 0.225, stemZ]], 0.006, M.steel);
+  }
+  // 수직 하우징
+  rod([x, 0.215, stemZ], [x, 0.29, stemZ], 0.016, M.grey);
+}
+
+// ---- 측면 프레임 ----
+function sideFrame(side) {
+  const x = side * sx;
+  const yl = 0.26, ys = S.seatH - 0.015, yArm = 0.68;
+  const backTopY = S.seatH + S.backH;                 // 0.89
+  // 등받이 기둥 + 밀이 손잡이
+  pipe([[x, yl, -0.21], [x, backTopY - 0.02, -0.25], [x, 0.895, -0.29], [x, 0.895, -0.36]]);
+  rod([x, 0.895, -0.29], [x, 0.895, -0.37], 0.016, M.black);   // 손잡이 고무
+  // 하부 레일, 좌석 레일, 앞 기둥
+  pipe([[x, yl, -0.21], [x, yl, stemZ()]]);
+  pipe([[x, ys, -0.22], [x, ys, 0.20], [x, 0.30, stemZ()]]);
+  // 팔걸이 파이프 + 팔받침
+  pipe([[x, yArm, -0.225], [x, yArm, 0.13], [x, ys, 0.17]]);
+  box(0.05, 0.03, 0.30, [x, yArm + 0.02, -0.05], M.black);
+  // 옆 가드 (투명)
+  const gd = new THREE.Mesh(new THREE.PlaneGeometry(0.30, yArm - ys - 0.02), M.guard);
+  gd.rotation.y = Math.PI / 2;
+  gd.position.set(x, (yArm + ys) / 2, -0.05);
+  chair.add(gd);
+  // 축 브래킷
+  box(0.012, 0.08, 0.07, [x + side * 0.012, S.rearR, zr], M.grey);
+  // 발판 행거 + 발판
+  const hx = side * (sx - 0.01);
+  pipe([[x, ys - 0.03, 0.21], [hx, 0.40, 0.29], [hx, 0.13, 0.42]]);
+  const plate = box(0.16, 0.012, 0.155, [side * (sx - 0.09), 0.115, 0.4975], M.plastic);
+  plate.rotation.x = -0.08;
+  rod([hx, 0.13, 0.42], [side * (sx - 0.09), 0.12, 0.43], 0.008, M.steel);
+  // 토글 브레이크
+  const bz = 0.10;
+  box(0.02, 0.03, 0.05, [side * (sx + 0.018), ys - 0.03, bz], M.grey);
+  rod([side * (sx + 0.02), ys - 0.03, bz], [side * (sx + 0.03), ys + 0.07, bz + 0.02], 0.007, M.steel);
+  rod([side * (sx + 0.03), ys + 0.07, bz + 0.02], [side * (sx + 0.03), ys + 0.12, bz + 0.03], 0.013, M.black);
+  rod([side * (sx + 0.02), ys - 0.03, bz], [side * wx, 0.36, 0.118], 0.007, M.grey);
+}
+function stemZ() { return zc + 0.035; }
+
+for (const s of [-1, 1]) { rearWheel(s); caster(s); sideFrame(s); }
+
+// ---- X자 지지대 2개 (접이식) ----
+for (const z of [-0.08, 0.08]) {
+  rod([-sx + 0.02, S.seatH - 0.02, z], [sx, 0.27, z], 0.009);
+  rod([sx - 0.02, S.seatH - 0.02, z], [-sx, 0.27, z], 0.009);
+  const bolt = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.03, 12), M.grey);
+  bolt.rotation.x = Math.PI / 2;
+  bolt.position.set(0, (S.seatH - 0.02 + 0.27) / 2, z);
+  chair.add(bolt);
+}
+// 좌석 아래 시트 봉 (지지대 윗끝이 물리는 봉)
+for (const s of [-1, 1]) rod([s * (sx - 0.02), S.seatH - 0.02, -0.21], [s * (sx - 0.02), S.seatH - 0.02, 0.20], 0.01);
+
+// ---- 좌석·등받이 (레자) ----
+box(S.seatW, 0.015, S.seatD, [0, S.seatH - 0.0075, 0], M.black);
+const back = box(S.seatW, S.backH - 0.02, 0.012, [0, S.seatH + S.backH / 2, -0.232], M.black);
+back.rotation.x = -Math.atan(0.04 / 0.63);
+const pocket = box(S.seatW * 0.8, 0.16, 0.02, [0, S.seatH + 0.18, -0.25], M.black);
+pocket.rotation.x = back.rotation.x;
+
+// ---- 치수선 ----
+const dims = new THREE.Group();
+scene.add(dims);
+const dimMat = new THREE.LineBasicMaterial({ color: 0xc0392b });
+function label(text, pos) {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 64;
+  const g = c.getContext('2d');
+  g.fillStyle = 'rgba(255,255,255,0.85)'; g.fillRect(0, 0, 256, 64);
+  g.fillStyle = '#c0392b'; g.font = 'bold 30px sans-serif';
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(text, 128, 32);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false }));
+  sp.scale.set(0.22, 0.055, 1);
+  sp.position.set(...pos);
+  dims.add(sp);
+}
+function dim(a, b, text, lp) {
+  const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(...a), new THREE.Vector3(...b)]);
+  dims.add(new THREE.Line(g, dimMat));
+  label(text, lp);
+}
+const zBack = zr - S.rearR, zFront = zBack + S.overallL;
+dim([-0.30, 0.005, zFront + 0.08], [0.30, 0.005, zFront + 0.08], '전폭 60', [0, 0.05, zFront + 0.08]);
+dim([0.40, 0.005, zBack], [0.40, 0.005, zFront], '전장 104', [0.40, 0.05, 0.03]);
+dim([0.40, 0, -0.36], [0.40, S.overallH, -0.36], '전고 91', [0.40, S.overallH / 2, -0.36]);
+dim([-0.40, 0, 0.10], [-0.40, S.seatH, 0.10], '좌고 47', [-0.40, S.seatH / 2, 0.10]);
+dim([-S.seatW / 2, S.seatH + 0.01, 0.22], [S.seatW / 2, S.seatH + 0.01, 0.22], '좌폭 41', [0, S.seatH + 0.05, 0.22]);
+dim([0.33, S.rearR - S.rearR, zr], [0.33, 2 * S.rearR, zr], '뒷바퀴 Ø59', [0.45, S.rearR + 0.08, zr]);
+label('앞바퀴 Ø20', [0.30, 0.24, zc]);
+document.getElementById('dim').addEventListener('change', e => { dims.visible = e.target.checked; });
+
+// ---- 간단한 궤도 카메라 ----
+const target = new THREE.Vector3(0, 0.45, 0.02);
+let rad = 2.6, theta = 0.8, phi = 1.15;
+function place() {
+  camera.position.set(
+    target.x + rad * Math.sin(phi) * Math.sin(theta),
+    target.y + rad * Math.cos(phi),
+    target.z + rad * Math.sin(phi) * Math.cos(theta));
+  camera.lookAt(target);
+}
+const views = { iso: [0.8, 1.15], side: [Math.PI / 2, Math.PI / 2], front: [0, Math.PI / 2], top: [0, 0.001] };
+document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => {
+  [theta, phi] = views[b.dataset.view]; place();
+}));
+let drag = null;
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+canvas.addEventListener('pointerdown', e => { drag = { x: e.clientX, y: e.clientY, b: e.button }; canvas.setPointerCapture(e.pointerId); });
+canvas.addEventListener('pointerup', () => { drag = null; });
+canvas.addEventListener('pointermove', e => {
+  if (!drag) return;
+  const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+  drag.x = e.clientX; drag.y = e.clientY;
+  if (drag.b === 2) {
+    const right = new THREE.Vector3().subVectors(camera.position, target).cross(camera.up).normalize();
+    target.addScaledVector(right, dx * 0.0015 * rad);
+    target.y += dy * 0.0015 * rad;
+  } else {
+    theta -= dx * 0.008;
+    phi = Math.min(Math.PI - 0.01, Math.max(0.01, phi - dy * 0.008));
+  }
+  place();
+});
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  rad = Math.min(8, Math.max(0.6, rad * (e.deltaY > 0 ? 1.1 : 0.9)));
+  place();
+}, { passive: false });
+
+function resize() {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize);
+resize(); place();
+(function loop() { renderer.render(scene, camera); requestAnimationFrame(loop); })();
+</script>
+</body>
+</html>
