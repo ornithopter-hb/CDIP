@@ -1,0 +1,674 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>휠체어 측면 프레임 내장형 기립 보조 기구 3D (좌판 33°, 레버 없음, 바닥 발)</title>
+<style>
+  body { margin: 0; font-family: "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; background: #f4f4f2; color: #222; }
+  main { max-width: 1100px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 20px; margin: 4px 0 4px; }
+  h2 { font-size: 16px; margin: 18px 0 4px; }
+  p { margin: 4px 0; font-size: 14px; line-height: 1.5; }
+  #view { width: 100%; height: 600px; background: #fff; border: 1px solid #ccc; display: block; touch-action: none; }
+  .bar { margin: 8px 0; font-size: 14px; }
+  .bar button { margin-right: 4px; }
+  .bar button.on { font-weight: bold; }
+  .bar input[type=range] { vertical-align: middle; }
+  #desc { min-height: 3em; background: #fff; border: 1px solid #ccc; padding: 6px 10px; }
+  table { border-collapse: collapse; font-size: 13px; margin: 8px 0 16px; }
+  th, td { border: 1px solid #bbb; padding: 4px 8px; text-align: left; }
+  th { background: #e8e8e4; }
+  td.n { text-align: right; }
+  small { color: #555; }
+  .cols { display: flex; flex-wrap: wrap; gap: 0 24px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>휠체어 측면 프레임 내장형 기립 보조 기구 3D — 좌판 33° · 레버 없음 · 바닥 발</h1>
+  <p>링크식·레버 없음 모델에서 세 가지를 바꾼 모델이다. (1) 좌판 최대각을 20.3°에서 <b>33°</b>로 올렸다(좌판각도_검토.md의 최소 권장 범위 아래쪽). (2) <b>넘어가는 받침</b>을 지렛대 코 밑에 붙은 채 뒤로 눕는 방식으로 바꾸고, 지연 댐퍼를 <b>양끝 핀</b>으로 받침 꼬리에 달았다. (3) 좌판이 올라가면 저절로 내려와 바닥을 짚는 <b>바닥 발</b>을 넣었다.</p>
+  <p><small>마우스 왼쪽 드래그: 회전 · 휠: 확대/축소 · 오른쪽 드래그: 이동. 계산은 준정적(힘의 평형)이며 댐퍼·브레이크의 시간 응답은 지연 시간 한 가지만 계산했다. 힘과 강성은 좌우 합이다.</small></p>
+
+  <div class="bar">
+    <button data-view="iso">사선</button>
+    <button data-view="side">측면(계측 쪽)</button>
+    <button data-view="side2">측면(반대쪽)</button>
+    <button data-view="rear">뒤</button>
+    <button data-view="top">위</button>
+    <button data-view="zoom">받침 확대 (이름 숨김)</button>
+    <label><input type="checkbox" id="ghost" checked> 휠체어 반투명</label>
+    <label><input type="checkbox" id="wheel"> 뒷바퀴 숨김</label>
+    <label><input type="checkbox" id="names" checked> 부품 이름</label>
+    <label><input type="checkbox" id="arrows" checked> 힘 화살표</label>
+  </div>
+  <canvas id="view"></canvas>
+
+  <div class="bar" id="stages">
+    <button data-stage="0">① 앉기·계측</button>
+    <button data-stage="1">② 지연·걸쇠</button>
+    <button data-stage="2">③ 하강·기대기</button>
+    <button data-stage="3">④ 일어서기</button>
+    <button data-stage="4">⑤ 복귀</button>
+  </div>
+  <div class="bar">
+    <button id="play">재생</button>
+    <input type="range" id="tl" min="0" max="5" step="0.01" value="0" style="width:60%">
+    <button id="reset">처음부터</button>
+  </div>
+  <p id="desc"></p>
+
+  <div class="bar">
+    <label>사용자 체중 <input type="range" id="mass" min="40" max="120" step="1" value="70"> <b id="massv"></b> kg</label>
+    &nbsp;&nbsp;
+    <label>앞 피벗–하중점 거리 b <input type="range" id="dist" min="100" max="300" step="5" value="250"> <b id="distv"></b> mm</label>
+  </div>
+
+  <div class="cols">
+    <div>
+      <h2>지금 값</h2>
+      <table id="now"></table>
+    </div>
+    <div>
+      <h2>설계 상수</h2>
+      <table id="consts"></table>
+    </div>
+  </div>
+
+  <h2>체중별 결과 (현재 b 기준)</h2>
+  <table id="result"></table>
+  <p><small>보조율 = 보조 스프링이 지렛대 축에 주는 모멘트 ÷ 사용자 하중이 지렛대 축에 주는 모멘트. 평균 = 좌판이 수평에서 33°까지 올라가는 동안 스프링이 하는 일 ÷ 사용자를 드는 데 필요한 일. 시작 = 좌판 수평, 끝 = 좌판 33°. 받침 각 = 지렛대 코 아랫면의 법선에서 뒤로 기운 각.</small></p>
+
+  <h2>② 지연·걸쇠에서 받침이 움직이는 방식</h2>
+  <table>
+    <tr><th>부품</th><th>연결</th><th>움직임</th></tr>
+    <tr><td>넘어가는 받침</td><td>아래 핀 = 계측 팔의 짧은 팔 끝. 윗끝 롤러는 지렛대 코 아랫면에 닿기만 한다(고정 아님). 아래 핀 밑으로 꼬리 40 mm</td><td>처음부터 뒤로 약 6° 기울어 서 있어서, 코가 누르면 뒤로 더 누우려 한다. 롤러는 코 아랫면을 따라 뒤로 구른다</td></tr>
+    <tr><td>지연 댐퍼</td><td>양끝 핀: 프레임 쪽 핀 – 받침 꼬리 핀. 몸통과 로드는 항상 일직선이고 핀을 중심으로 방향만 바뀐다</td><td>눌리는 쪽만 저항한다. 처음 약 5 mm만 저항하고 그 뒤 행정은 자유. 안의 약한 스프링이 받침을 다시 세운다</td></tr>
+    <tr><td>걸쇠 벨크랭크 · 걸쇠 막대 · 걸쇠 레일</td><td>벨크랭크는 좌석 레일에서 내린 브래킷에 핀. 아랫팔이 받침 꼬리 핀 앞에 닿아 있고, 윗팔이 좌석 레일을 따라 가는 걸쇠 막대를 민다</td><td>꼬리 핀이 약 2.6 mm 앞으로 가면 걸쇠 레일이 뒤로 밀려 걸쇠가 톱니에 물린다. 그 뒤 아랫팔은 꼬리 핀이 지나는 원호와 같은 모양이라 더 밀리지 않는다 <small>(개념, 치수 미검증)</small></td></tr>
+  </table>
+
+  <h2>레버를 대신한 것</h2>
+  <table>
+    <tr><th>레버가 하던 일</th><th>대신하는 것</th><th>사용자가 하는 동작</th></tr>
+    <tr><td>걸쇠 물리기 + 받침 풀기 (하강)</td><td>넘어가는 받침 + 지연 댐퍼. 받침이 뒤로 약 4° 더 누우면 걸쇠가 물리고, 약 8° 더 누우면 댐퍼가 놓아 받침이 코 밑에서 뒤로 눕는다</td><td>앉기</td></tr>
+    <tr><td>주행 잠금 걸기</td><td>등받이 바 + 좌판 뒤끝 걸쇠 (한 부품). 바가 뒤로 밀리면 아래의 걸쇠 손가락이 앞으로 나와 좌판 뒤끝 위를 덮는다</td><td>등받이에 기대기</td></tr>
+    <tr><td>주행 잠금 풀기 (기립)</td><td>같은 부품의 복귀 스프링. 바에서 등이 떨어지면 걸쇠 손가락이 뒤로 빠진다</td><td>몸을 앞으로 숙이기</td></tr>
+    <tr><td>브레이크 걸기</td><td>바닥 발. 지렛대 축의 크랭크가 장공 막대로 다리를 들고 있다가, 좌판이 약 10° 올라가면 발이 바닥에 닿는다</td><td>없음 (좌판이 올라가면 저절로)</td></tr>
+  </table>
+
+  <h2>관절별 잠금</h2>
+  <table>
+    <tr><th>관절</th><th>잠그는 방법</th><th>잠기는 때</th></tr>
+    <tr><td>좌판 앞 피벗</td><td>좌판 뒤끝 걸쇠가 좌판 뒤끝을 문다</td><td>좌판 수평 + 등받이에 기댐</td></tr>
+    <tr><td>슬라이더 (호 홈)</td><td>걸쇠가 호 홈 옆 톱니에 물림</td><td>② 이후 ⑤ 전까지</td></tr>
+    <tr><td>지렛대 축 (뒷바퀴 축) · 들어올림 링크 양끝 핀</td><td>좌판이 잠기면 지렛대–링크–좌판–프레임(4절 링크)이 움직일 수 없음</td><td>좌판 수평 + 등받이에 기댐</td></tr>
+    <tr><td>보조 스프링 양끝 핀</td><td>지렛대와 슬라이더가 잠기면 고정 핀–슬라이더 거리가 정해짐</td><td>좌판 수평 + 등받이에 기댐</td></tr>
+    <tr><td>넘어가는 받침 · 지연 댐퍼 양끝 핀</td><td>잠그지 않음. 지연 댐퍼가 붙잡고 있는 동안만 받친다. 좌판이 잠기면 받침은 코 밑에 누운 채 댐퍼 안의 스프링에 눌려 있다</td><td>① 계측 중</td></tr>
+    <tr><td>계측 팔</td><td>비틀림 스프링 예압으로 멈춤턱에 붙음</td><td>받침이 풀린 뒤</td></tr>
+    <tr><td>바닥 발 피벗 · 장공 막대 양끝 핀</td><td>좌판 수평: 지렛대가 잠기면 크랭크–막대가 다리를 든 채 고정. 좌판 올라감: 발이 바닥을 짚고, 휠체어가 뒤로 밀릴수록 더 버틴다</td><td>항상 (둘 중 하나)</td></tr>
+  </table>
+
+  <h2>가정</h2>
+  <p><small>v3에서 가져온 값: 좌판이 체중의 70 %를 받음, 앞 피벗–좌골결절 250 mm(슬라이더 기본값), 복귀 스프링 3 N, 보조 스프링은 행정 중 힘이 일정한 가스 스프링. 좌판각도_검토.md에서 가져온 값: 좌판 최대각 33°, 휠체어 20 kg·무게중심 z = 0·앞바퀴 접지점 z = 0.23(가정). 이번에 잡은 값: 지렛대 축–링크 핀 240 mm, 앞 피벗–링크 200 mm, 보조 스프링 400 N × 2, 호 반지름 = 계측 팔의 긴 팔 240 mm, 짧은 팔 30 mm(비 8), 톱니 피치 2.5 mm, 슬라이더 초기 위치 25 mm, 받침 길이 61.1 mm·꼬리 40 mm·롤러 반지름 5 mm, 지연 댐퍼 길이 110 mm, 지연은 120 kg에서 걸쇠까지 1.0초, 바닥 발 다리 287 mm(수직에서 뒤로 25°)·크랭크 52 mm·귀 18 mm. 계측 스프링 강성과 예압은 40 kg·120 kg에서 평균 보조율이 35 %가 되도록 계산. 부품의 크기·두께와 브래킷·막대 위치는 휠체어 3D 모델(일부 임의값)에 맞춘 임의값이다. 마찰, 좌판·부품 자중은 넣지 않았다. 걸쇠 벨크랭크·걸쇠 막대·걸쇠 레일은 개념만 그렸고 치수는 검증하지 않았다.</small></p>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// =====================================================================
+// 1. 계산 (휠체어_측면내장_33도_계산.py 와 같은 식. 단위 m, N)
+// =====================================================================
+const RAD = Math.PI / 180;
+const C = { frac: 0.70, thUp: 33 * RAD, Fret: 3, AR: 0.24, LP: 0.20, drop: 0.012, F: 800, i: 8, target: 0.35, pitch: 0.0025,
+  kth: 31.51014791057969, tau0: 1.7327552077767905, u0: 0.025,   // 계측 스프링(비틀림) 강성 [N m/rad]·예압 [N m] = 계산 스크립트의 fit() 결과, 슬라이더 초기 위치
+  psi0: 6 * RAD, psiL: 10 * RAD, psiR: 14 * RAD, dmid: 0.25,     // 받침 각(계측 팔이 처음 자리일 때): 처음 / 걸쇠 / 댐퍼가 놓음, 짧은 팔의 처음 각 = 지렛대 각 + dmid
+  hT: 0.04, LD: 0.11, RR: 0.005, HW: 0.0135,                      // 받침 꼬리, 지연 댐퍼 길이, 롤러 반지름, 지렛대 코 반폭
+  cr: 106.81672045106033, rSeat: 0.39 };                          // 지연 댐퍼 [N m s/rad] (120 kg 에서 걸쇠까지 1.0 초), 앞 피벗-좌판 뒤끝
+const P = { z: 0.19, y: 0.455 }, O = { z: -0.17, y: 0.295 }, B = { z: 0.07, y: 0.300 };
+const DF = { z: 0.21970494746314007, y: 0.30971560284988575 };   // 지연 댐퍼의 프레임 쪽 핀 (계산 스크립트가 고른 자리)
+const dist = (p, q) => Math.hypot(p.z - q.z, p.y - q.y);
+function bis(f, lo, hi, n = 42) {
+  let flo = f(lo);
+  for (let j = 0; j < n; j++) { const mid = 0.5 * (lo + hi), fm = f(mid); if ((flo > 0) === (fm > 0)) { lo = mid; flo = fm; } else hi = mid; }
+  return 0.5 * (lo + hi);
+}
+const ELL = dist(B, O), BASE = Math.atan2(O.y - B.y, O.z - B.z), RS = ELL / C.i;
+const Sp = th => ({ z: P.z - C.LP * Math.cos(th), y: P.y + C.LP * Math.sin(th) - C.drop });
+const Ep = ph => ({ z: O.z + C.AR * Math.cos(ph), y: O.y + C.AR * Math.sin(ph) });
+const LK = dist(Sp(0), Ep(0));
+const thetaOf = ph => bis(th => dist(Sp(th), Ep(ph)) - LK, -0.15, 0.9);
+const PH_UP = bis(ph => thetaOf(ph) - C.thUp, 0, 1.3);
+// 계측 팔의 짧은 팔 끝 (= 받침 아래 핀). D = 계측 팔이 돈 각
+const A0 = PH_UP + C.dmid;
+const Bp = D => ({ z: B.z + RS * Math.cos(A0 - D), y: B.y + RS * Math.sin(A0 - D) });
+const nose = (p, ph) => (p.z - O.z) * Math.sin(ph) - (p.y - O.y) * Math.cos(ph);      // 점 p 가 지렛대 중심선 아래로 떨어진 거리
+const LS = (nose(Bp(0), PH_UP) - C.HW - C.RR) / Math.cos(C.psi0);                     // 받침 길이
+function leverOf(D, psi) {     // 계측 팔 회전 D, 받침 각 psi 일 때 지렛대 각과 롤러 중심
+  const bp = Bp(D), cOf = ph => ({ z: bp.z - LS * Math.sin(ph + psi), y: bp.y + LS * Math.cos(ph + psi) });
+  const ph = bis(ph => nose(cOf(ph), ph) - (C.HW + C.RR), -0.3, PH_UP + 0.3, 48);
+  return { ph, c: cOf(ph) };
+}
+function tailOf(D, psi) { const ph = leverOf(D, psi).ph, bp = Bp(D); return { z: bp.z + C.hT * Math.sin(ph + psi), y: bp.y - C.hT * Math.cos(ph + psi) }; }
+const XL = C.LD - dist(tailOf(0, C.psiL), DF), XR = C.LD - dist(tailOf(0, C.psiR), DF);   // 걸쇠·놓음까지 댐퍼가 눌리는 길이
+const psiAt = (D, x) => bis(psi => dist(tailOf(D, psi), DF) - (C.LD - x), 0.02, 1.2);     // 댐퍼가 x 만큼 눌렸을 때의 받침 각
+const psiDown = (ph, D) => Math.acos(Math.min(1, Math.max(-1, (nose(Bp(D), ph) - C.HW - C.RR) / LS)));   // 댐퍼가 놓은 뒤: 롤러가 코 밑에 붙어 있을 때
+const Q0 = u => { const be = BASE - u / ELL; return { z: B.z + ELL * Math.cos(be), y: B.y + ELL * Math.sin(be) }; };
+function Qp(u, ph) {
+  const q = Q0(u), d = ph - PH_UP, x = q.z - O.z, y = q.y - O.y;
+  return { z: O.z + x * Math.cos(d) - y * Math.sin(d), y: O.y + x * Math.sin(d) + y * Math.cos(d) };
+}
+const Ls = (u, ph) => dist(Qp(u, ph), B);
+function Ms(u, ph) {
+  const q = Qp(u, ph), L = dist(q, B), fz = C.F * (q.z - B.z) / L, fy = C.F * (q.y - B.y) / L;
+  return (q.z - O.z) * fy - (q.y - O.y) * fz;
+}
+const Ft = (u, ph) => C.F * (Ls(u + 1e-6, ph) - Ls(u - 1e-6, ph)) / 2e-6;
+function Mload(m, ph, b) {
+  const h = 1e-4, dth = (thetaOf(ph + h) - thetaOf(ph - h)) / (2 * h);
+  return C.frac * m * 9.81 * b * Math.cos(thetaOf(ph)) * dth;
+}
+const eRatio = (u, m, b) => C.F * (Ls(u, PH_UP) - Ls(u, 0)) / (C.frac * m * 9.81 * b * Math.sin(C.thUp));
+const lt = a => Math.log(Math.tan(a / 2));
+function measure(m, b) {       // 걸쇠가 물리는 순간(댐퍼가 XL 만큼 눌림)의 평형. 댐퍼 반력이 계측 팔에 주는 토크를 포함한다
+  const parts = D => {
+    const psi = psiAt(D, XL), lv = leverOf(D, psi), ph = lv.ph, c = lv.c, u = C.u0 + ELL * D;
+    const rc = (c.z - O.z) * Math.cos(ph) + (c.y - O.y) * Math.sin(ph);
+    const N = (Mload(m, ph, b) - Ms(u, ph)) / rc;
+    const tp = tailOf(D, psi), L = dist(tp, DF), uz = (tp.z - DF.z) / L, uy = (tp.y - DF.y) / L;
+    const br = -(Math.sin(ph + psi) * uy + Math.cos(ph + psi) * uz);
+    const Fd = N * LS * Math.sin(psi) / (C.hT * br);
+    const Fz = N * Math.sin(ph) + Fd * uz, Fy = -N * Math.cos(ph) + Fd * uy;
+    const a = A0 - D, tl = -(RS * Math.cos(a) * Fy - RS * Math.sin(a) * Fz), T = C.Fret - Ft(u, ph);
+    return { f: tl - (C.tau0 + C.kth * D + ELL * T), D, psi, ph, u, N, Fd, T };
+  };
+  const r = parts(0).f <= 0 ? parts(0) : parts(bis(D => parts(D).f, 0, 0.9, 44));   // 하중이 작아 예압을 못 이기면 슬라이더는 초기 위치에 남는다
+  const ul = C.u0 + Math.floor((r.u - C.u0) / C.pitch + 1e-9) * C.pitch;
+  const dth0 = (thetaOf(1e-4) - thetaOf(-1e-4)) / 2e-4;
+  const p0 = psiAt(r.D, 0), pR = psiAt(r.D, XR);
+  return { D: r.D, phm: r.ph, u: r.u, ul, T: r.T, N: r.N, Fd: r.Fd, p0, pL: r.psi, pR, phR: leverOf(r.D, pR).ph,
+    avg: eRatio(ul, m, b), start: Ms(ul, 0) / Mload(m, 0, b), end: Ms(ul, PH_UP) / Mload(m, PH_UP, b),
+    stroke: Ls(ul, PH_UP) - Ls(ul, 0), latch: -Ft(ul, 0), link: Mload(m, 0, b) / C.AR, seatlock: Ms(ul, 0) / dth0 / C.rSeat,
+    tL: C.cr / (r.N * LS) * (lt(r.psi) - lt(p0)), tR: C.cr / (r.N * LS) * (lt(pR) - lt(p0)) };
+}
+// 바닥 발: 뒤 가로 파이프에 자유롭게 도는 다리. 지렛대 축의 크랭크가 장공 막대로 다리의 귀를 들고 있다
+const FT = { pz: -0.205, py: 0.26, lam: 25 * RAD, stow: 55 * RAD, rc: 0.052, g0: -185 * RAD, rl: 0.018 };
+FT.len = FT.py / Math.cos(FT.lam);
+const crankPin = ph => ({ z: O.z + FT.rc * Math.cos(FT.g0 + ph), y: O.y + FT.rc * Math.sin(FT.g0 + ph) });
+const lugOf = lam => ({ z: FT.pz - FT.rl * Math.sin(lam), y: FT.py - FT.rl * Math.cos(lam) });
+const LROD = dist(crankPin(0), lugOf(FT.stow));
+function legAngle(ph) {        // 다리가 수직에서 뒤로 기운 각. 막대는 당기는 쪽으로만 힘을 전한다(장공)
+  if (dist(crankPin(ph), lugOf(FT.lam)) <= LROD) return FT.lam;
+  return bis(lam => dist(crankPin(ph), lugOf(lam)) - LROD, FT.lam, FT.stow + 0.2);
+}
+const PH_TD = bis(ph => (legAngle(ph) > FT.lam + 1e-9 ? 1 : -1), 0, PH_UP);     // 발이 바닥에 닿는 지렛대 각
+
+// =====================================================================
+// 2. 장면
+// =====================================================================
+const S = { seatW: 0.41, seatD: 0.40, seatH: 0.47, backH: 0.42, rearR: 0.295, castR: 0.10 };
+const sx = S.seatW / 2 + 0.012, zr = -0.17, wx = 0.255, zc = 0.23, tubeR = 0.011;
+const X1 = sx - 0.014, XA = sx - 0.026, X2 = sx - 0.044;      // 안쪽 층: 링크 / 계측 팔·토글 / 보조 스프링
+
+const canvas = document.getElementById('view');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xffffff);
+const camera = new THREE.PerspectiveCamera(35, 1, 0.01, 50);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x888888, 0.85));
+const sun = new THREE.DirectionalLight(0xffffff, 0.7);
+sun.position.set(2, 3, 2);
+scene.add(sun);
+scene.add(new THREE.GridHelper(2, 20, 0xbbbbbb, 0xdddddd));
+
+const std = (color, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color, roughness: 0.6 }, o));
+const M = {   // 휠체어 재질 (반투명 전환 대상)
+  steel: std(0xd4d8dc, { metalness: 0.35, roughness: 0.35 }), black: std(0x1e1e1e, { roughness: 0.8 }),
+  tire: std(0x2a2a2a, { roughness: 0.9 }), grey: std(0xa4a9ae, { metalness: 0.3, roughness: 0.45 }),
+  guard: std(0x5aa0b8, { transparent: true, opacity: 0.35, side: THREE.DoubleSide }), plastic: std(0x333333)
+};
+const K = {   // 기구 재질
+  frame: std(0x3a4245), seat: std(0x6d7478, { transparent: true, opacity: 0.6 }), assist: std(0xe04a1f), measure: std(0x1f6f8b),
+  latch: std(0x2e7d32), damper: std(0x5b3fd1), lock: std(0xd49a00), strut: std(0x0b3c5d), foot: std(0x8e44ad), rod: std(0xc8ccd0, { metalness: 0.5, roughness: 0.3 })
+};
+const chair = new THREE.Group(), wheels = new THREE.Group(), mech = new THREE.Group();
+scene.add(chair, wheels, mech);
+const Y = new THREE.Vector3(0, 1, 0);
+function setRod(m, a, b) {
+  const A = new THREE.Vector3(...a), Bv = new THREE.Vector3(...b), len = Math.max(1e-4, A.distanceTo(Bv));
+  m.position.copy(A).add(Bv).multiplyScalar(0.5);
+  m.quaternion.setFromUnitVectors(Y, Bv.clone().sub(A).normalize());
+  m.scale.set(1, len, 1);
+}
+function rod(a, b, r = tubeR, mat = M.steel, parent = chair) {
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 1, 16), mat); parent.add(m); setRod(m, a, b); return m;
+}
+function bar(a, b, w, t, mat, parent = mech) {   // 납작한 막대 (두께 t 가 x 방향, 측면 평면 안에서만 사용)
+  const m = new THREE.Mesh(new THREE.BoxGeometry(t, 1, w), mat); parent.add(m); setRod(m, a, b); return m;
+}
+function pipe(pts, r = tubeR, mat = M.steel, parent = chair) {
+  for (let n = 0; n < pts.length - 1; n++) rod(pts[n], pts[n + 1], r, mat, parent);
+  for (let n = 1; n < pts.length - 1; n++) { const s = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 12), mat); s.position.set(...pts[n]); parent.add(s); }
+}
+function box(w, h, d, pos, mat, parent = chair) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(...pos); parent.add(m); return m;
+}
+function disc(r, t, pos, mat, parent = mech) {   // 축이 x 방향인 원판
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, t, 24), mat); m.rotation.z = Math.PI / 2; m.position.set(...pos); parent.add(m); return m;
+}
+function coil(r, turns, tube, mat, parent = mech) {   // 높이 1 인 코일
+  class Helix extends THREE.Curve { getPoint(t) { const q = t * turns * 2 * Math.PI; return new THREE.Vector3(r * Math.cos(q), t, r * Math.sin(q)); } }
+  const m = new THREE.Mesh(new THREE.TubeGeometry(new Helix(), turns * 20, tube, 6, false), mat); parent.add(m); return m;
+}
+
+// ---------------------------------------------------------------------
+// 2.1 휠체어 (기립보조장치_휠체어_3D.html 과 같은 치수. X자 지지대와 천 좌석은 뺌)
+// ---------------------------------------------------------------------
+const stemZ = zc + 0.035;
+function rearWheel(side) {
+  const g = new THREE.Group(), R = S.rearR, tr = 0.018;
+  const tire = new THREE.Mesh(new THREE.TorusGeometry(R - tr, tr, 16, 64), M.tire); tire.rotation.y = Math.PI / 2; g.add(tire);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(R - 2 * tr - 0.006, 0.008, 8, 64), M.steel); rim.rotation.y = Math.PI / 2; g.add(rim);
+  const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.06, 20), M.grey); hub.rotation.z = Math.PI / 2; g.add(hub);
+  for (let n = 0; n < 24; n++) {
+    const t = n / 24 * Math.PI * 2, off = (n % 2 ? 0.025 : -0.025), rr = R - 2 * tr - 0.01;
+    rod([off, 0, 0], [0, Math.sin(t) * rr, Math.cos(t) * rr], 0.0015, M.grey, g);
+  }
+  const hr = R - 0.035, hx = 0.035 * side;
+  const handrim = new THREE.Mesh(new THREE.TorusGeometry(hr, 0.009, 10, 64), M.steel); handrim.rotation.y = Math.PI / 2; handrim.position.x = hx; g.add(handrim);
+  for (let n = 0; n < 4; n++) { const t = n / 4 * Math.PI * 2 + 0.4; rod([0, Math.sin(t) * hr, Math.cos(t) * hr], [hx, Math.sin(t) * hr, Math.cos(t) * hr], 0.004, M.steel, g); }
+  g.position.set(side * wx, S.rearR, zr); wheels.add(g);
+  rod([side * sx, S.rearR, zr], [side * (wx + 0.03), S.rearR, zr], 0.008, M.grey);
+}
+function caster(side) {
+  const x = side * sx;
+  for (const [r, t, mat] of [[S.castR, 0.028, M.tire], [0.045, 0.03, M.plastic]]) {
+    const w = new THREE.Mesh(new THREE.CylinderGeometry(r, r, t, 32), mat); w.rotation.z = Math.PI / 2; w.position.set(x, S.castR, zc); chair.add(w);
+  }
+  for (const d of [-1, 1]) pipe([[x + d * 0.022, S.castR, zc], [x + d * 0.022, 0.215, stemZ], [x, 0.225, stemZ]], 0.006);
+  rod([x, 0.215, stemZ], [x, 0.29, stemZ], 0.016, M.grey);
+}
+function sideFrame(side) {
+  const x = side * sx, yl = 0.26, ys = S.seatH - 0.015, yArm = 0.68, backTopY = S.seatH + S.backH;
+  pipe([[x, yl, -0.21], [x, backTopY - 0.02, -0.25], [x, 0.895, -0.29], [x, 0.895, -0.36]]);
+  rod([x, 0.895, -0.29], [x, 0.895, -0.37], 0.016, M.black);
+  pipe([[x, yl, -0.21], [x, yl, stemZ]]);
+  pipe([[x, ys, -0.22], [x, ys, 0.20], [x, 0.30, stemZ]]);
+  pipe([[x, yArm, -0.225], [x, yArm, 0.13], [x, ys, 0.17]]);
+  box(0.05, 0.03, 0.30, [x, yArm + 0.02, -0.05], M.black);
+  const gd = new THREE.Mesh(new THREE.PlaneGeometry(0.30, yArm - ys - 0.02), M.guard);
+  gd.rotation.y = Math.PI / 2; gd.position.set(x, (yArm + ys) / 2, -0.05); chair.add(gd);
+  box(0.012, 0.08, 0.07, [x + side * 0.012, S.rearR, zr], M.grey);
+  const hx = side * (sx - 0.01);
+  pipe([[x, ys - 0.03, 0.21], [hx, 0.40, 0.29], [hx, 0.13, 0.42]]);
+  box(0.16, 0.012, 0.155, [side * (sx - 0.09), 0.115, 0.4975], M.plastic).rotation.x = -0.08;
+  rod([hx, 0.13, 0.42], [side * (sx - 0.09), 0.12, 0.43], 0.008);
+  const bz = 0.10;
+  box(0.02, 0.03, 0.05, [side * (sx + 0.018), ys - 0.03, bz], M.grey);
+  rod([side * (sx + 0.02), ys - 0.03, bz], [side * (sx + 0.03), ys + 0.07, bz + 0.02], 0.007);
+  rod([side * (sx + 0.03), ys + 0.07, bz + 0.02], [side * (sx + 0.03), ys + 0.12, bz + 0.03], 0.013, M.black);
+  rod([side * (sx + 0.02), ys - 0.03, bz], [side * wx, 0.36, 0.118], 0.007, M.grey);
+}
+for (const s of [-1, 1]) { rearWheel(s); caster(s); sideFrame(s); }
+const back = box(S.seatW, S.backH - 0.02, 0.012, [0, S.seatH + S.backH / 2, -0.232], M.black);
+back.rotation.x = -Math.atan(0.04 / 0.63);
+for (const z of [0.20, -0.205]) rod([-sx, 0.26, z], [sx, 0.26, z], tubeR, M.steel);   // X자 지지대 대신 넣는 가로 파이프
+
+// ---------------------------------------------------------------------
+// 2.2 기구
+// ---------------------------------------------------------------------
+const XS = sx - 0.020, XT = sx - 0.014, XR_ = sx - 0.006;      // 층: 받침·지연 댐퍼 / 걸쇠 벨크랭크 / 걸쇠 막대
+const LNOSE = 0.27;                                            // 지렛대 축 - 코 끝
+const armAng = ua => BASE - (ua - 0.009) / ELL;                // 계측 팔 각 (긴 팔 윗변이 슬라이더 핀 아래에 닿는다)
+const HB = { z: -0.208, y: 0.505 };                            // 등받이 바 힌지 (등받이 기둥 앞)
+const RAILR = ELL + 0.017;                                     // 걸쇠 레일 반지름 (호 홈 바로 바깥)
+const TP = { z: 0.127, y: 0.365 }, TRIP = 0.031;               // 걸쇠 벨크랭크 핀, 걸쇠가 물릴 때 도는 각 [rad]
+const FX = sx - 0.08;                                          // 바닥 발의 좌우 위치
+
+rod([-sx, P.y, P.z], [sx, P.y, P.z], 0.008, K.frame, mech);                   // 좌판 앞 피벗 축
+rod([-sx, O.y, O.z], [sx, O.y, O.z], 0.010, K.frame, mech);                   // 지렛대 축 (좌우를 잇는 가로축)
+disc(0.03, 0.012, [-(sx - 0.035), O.y, O.z], K.damper);                       // 원심 브레이크
+disc(0.024, 0.012, [-(sx - 0.055), O.y, O.z], K.damper);                      // 하강 댐퍼 (회전식)
+const seatG = new THREE.Group(); seatG.position.set(0, P.y, P.z); mech.add(seatG);
+box(S.seatW, 0.015, S.seatD, [0, 0.0075, 0.01 - S.seatD / 2], K.seat, seatG);
+for (const s of [-1, 1]) box(0.012, C.drop + 0.006, 0.024, [s * X1, -C.drop / 2, -C.LP], K.frame, seatG);
+
+const sideParts = [];
+for (const s of [-1, 1]) {
+  // 지렛대(코까지) + 부채꼴 팔: 계측 자세 기준으로 만들고 축을 중심으로 돌린다
+  const g = new THREE.Group(); g.position.set(s * sx, O.y, O.z); mech.add(g);
+  const rel = p => [0, p.y - O.y, p.z - O.z];
+  bar([0, 0, 0], [0, LNOSE * Math.sin(PH_UP), LNOSE * Math.cos(PH_UP)], 2 * C.HW, 0.006, K.frame, g);
+  for (let u = 0; u < 0.135; u += 0.01) bar(rel(Q0(u - 0.004)), rel(Q0(u + 0.014)), 0.024, 0.006, K.frame, g);
+  for (let u = 0.02; u < 0.14; u += 0.01) bar(rel(Q0(u)).map((v, n) => n ? v : -s * 0.004), rel(Q0(u + 0.01)).map((v, n) => n ? v : -s * 0.004), 0.008, 0.002, K.latch, g);   // 톱니
+  disc(0.013, 0.012, [0, 0, 0], K.frame, g);
+  disc(0.004, 0.016, [s * 0.006, Q0(0.004).y - O.y, Q0(0.004).z - O.z], K.rod, g);    // 복귀 스프링 걸이 핀
+  box(0.03, 0.036, 0.016, [s * (sx - 0.045), 0.288, B.z], K.frame, mech);       // 보조 스프링 고정 핀 브래킷
+  rod([s * (sx - 0.055), B.y, B.z], [s * (sx - 0.0235), B.y, B.z], 0.005, K.rod, mech);
+  // 바닥 발: 다리(뒤 가로 파이프에 자유롭게 돎) + 고무 발 + 귀
+  const leg = new THREE.Group(); leg.position.set(s * FX, FT.py, FT.pz); mech.add(leg);
+  rod([0, 0, 0], [0, -FT.len + 0.012, 0], 0.008, K.foot, leg);
+  box(0.034, 0.014, 0.05, [0, -FT.len + 0.007, 0], M.black, leg).rotation.x = -FT.lam;
+  disc(0.015, 0.02, [0, 0, 0], K.foot, leg);
+  box(0.006, 0.024, 0.010, [s * 0.012, -0.012, 0], K.foot, leg);
+  const crank = new THREE.Group(); crank.position.set(s * (FX + 0.012), O.y, O.z); mech.add(crank);
+  bar([0, 0, 0], [0, FT.rc * Math.sin(FT.g0), FT.rc * Math.cos(FT.g0)], 0.012, 0.005, K.foot, crank);
+  sideParts.push({
+    s, g, leg, crank,
+    link: bar([0, 0, 0], [0, 1, 0], 0.014, 0.005, K.frame),
+    gasBody: rod([0, 0, 0], [0, 1, 0], 0.011, K.assist, mech),
+    gasRod: rod([0, 0, 0], [0, 1, 0], 0.005, K.rod, mech),
+    pawl: box(0.006, 0.012, 0.012, [0, 0, 0], K.latch, mech),
+    ret: coil(0.004, 9, 0.0009, K.latch),
+    lift: bar([0, 0, 0], [0, 1, 0], 0.007, 0.003, K.foot)
+  });
+}
+const crossBar = rod([0, 0, 0], [0, 1, 0], 0.005, K.assist, mech);            // 슬라이더 연결봉 (좌우 슬라이더를 한 몸으로)
+
+// 계측부 (오른쪽 측면): 계측 팔(층 XA) + 비틀림 스프링 + 넘어가는 받침·지연 댐퍼(층 XS)
+const armLong = bar([0, 0, 0], [0, 1, 0], 0.008, 0.005, K.measure), armShort = bar([0, 0, 0], [0, 1, 0], 0.012, 0.005, K.measure);
+const tors = new THREE.Mesh(new THREE.TorusGeometry(0.011, 0.003, 8, 24), K.measure); tors.rotation.y = Math.PI / 2; tors.position.set(XA - 0.007, B.y, B.z); mech.add(tors);
+const strut = bar([0, 0, 0], [0, 1, 0], 0.011, 0.004, K.strut);
+const lip = rod([0, 0, 0], [0, 1, 0], C.RR, K.rod, mech);                    // 받침 윗끝 롤러 (지렛대 코 아랫면에 닿는다)
+const footPin = rod([0, 0, 0], [0, 1, 0], 0.003, K.rod, mech);               // 받침 아래 핀 (짧은 팔 끝)
+const tailPin = rod([0, 0, 0], [0, 1, 0], 0.003, K.rod, mech);               // 받침 꼬리 핀 (지연 댐퍼 로드 끝, 걸쇠 벨크랭크가 닿는 곳)
+const dampBody = rod([0, 0, 0], [0, 1, 0], 0.007, K.damper, mech), dampRod = rod([0, 0, 0], [0, 1, 0], 0.003, K.rod, mech);
+box(0.02, 0.016, 0.016, [XS + 0.012, DF.y, DF.z + 0.004], K.frame, mech);    // 지연 댐퍼의 프레임 쪽 브래킷
+rod([XS - 0.006, DF.y, DF.z], [XS + 0.014, DF.y, DF.z], 0.003, K.rod, mech);
+// 걸쇠 벨크랭크: 걸쇠가 물린 자세 기준으로 만든다. 아랫팔 = 평평한 면(걸쇠 전) + 꼬리 핀이 지나는 원호와 같은 모양(걸쇠 후)
+const tripG = new THREE.Group(); tripG.position.set(XT, TP.y, TP.z); mech.add(tripG);
+{
+  const bp0 = Bp(0), rr = C.hT + 0.005, pt = g => [0, bp0.y + rr * Math.sin(g) - TP.y, bp0.z + rr * Math.cos(g) - TP.z];
+  const gL = (PH_UP + C.psiL) - Math.PI / 2, gE = 50 * RAD, n = 12;
+  for (let j = 0; j < n; j++) bar(pt(gL + (gE - gL) * j / n), pt(gL + (gE - gL) * (j + 1) / n), 0.006, 0.004, K.latch, tripG);
+  const a0 = pt(gL), fd = Math.atan2(DF.y - tailOf(0, C.psi0).y, DF.z - tailOf(0, C.psi0).z) - Math.PI / 2;
+  bar(a0, [0, a0[1] + 0.022 * Math.sin(fd), a0[2] + 0.022 * Math.cos(fd)], 0.006, 0.004, K.latch, tripG);
+  bar(pt(gE), [0, 0, 0], 0.006, 0.004, K.latch, tripG);
+  bar([0, 0, 0], [0, 0.436 - TP.y, 0], 0.006, 0.004, K.latch, tripG);
+  disc(0.006, 0.008, [0, 0, 0], K.rod, tripG);
+}
+box(0.012, 0.444 - TP.y - 0.02, 0.008, [XT - 0.010, (0.444 + TP.y) / 2 + 0.008, TP.z + 0.004], K.frame, mech);   // 좌석 레일에서 내린 브래킷
+rod([XT - 0.012, TP.y, TP.z], [XT + 0.004, TP.y, TP.z], 0.003, K.rod, mech);
+// 걸쇠 레일 (프레임에 달린 호 모양 막대. 걸쇠를 받쳐 열어 두다가, 걸쇠 막대가 뒤로 밀면 걸쇠가 톱니에 물린다)
+const railG = new THREE.Group(); railG.position.set(sx - 0.008, B.y, B.z); mech.add(railG);
+const railPt = u => { const be = BASE - u / ELL; return [0, RAILR * Math.sin(be), RAILR * Math.cos(be)]; };
+for (let u = 0.015; u < 0.13; u += 0.01) bar(railPt(u), railPt(u + 0.011), 0.006, 0.003, K.latch, railG);
+const railTop = { y: B.y + RAILR * Math.sin(BASE - 0.14 / ELL), z: B.z + RAILR * Math.cos(BASE - 0.14 / ELL) };
+const rodH = rod([0, 0, 0], [0, 1, 0], 0.0025, K.latch, mech);                // 걸쇠 막대 (좌석 레일을 따라 간다)
+// 등받이 바 + 좌판 뒤끝 걸쇠 (한 부품, 등받이 기둥 앞의 힌지를 중심으로 돈다)
+rod([-sx, HB.y, HB.z], [sx, HB.y, HB.z], 0.004, K.rod, mech);
+for (const s of [-1, 1]) box(0.01, 0.012, 0.022, [s * (sx - 0.006), HB.y, HB.z - 0.008], K.frame, mech);
+const backG = new THREE.Group(); backG.position.set(0, HB.y, HB.z); mech.add(backG);
+rod([-(sx - 0.02), 0.12, 0.014], [sx - 0.02, 0.12, 0.014], 0.009, K.lock, backG);
+for (const s of [-1, 1]) {
+  bar([s * (sx - 0.03), 0, 0], [s * (sx - 0.03), 0.12, 0.014], 0.012, 0.005, K.lock, backG);
+  bar([s * (sx - 0.03), 0, 0], [s * (sx - 0.03), -0.03, 0.005], 0.012, 0.006, K.lock, backG);
+}
+
+// 힘 화살표, 이름표
+const arrows = new THREE.Group(); scene.add(arrows);
+const aLoad = new THREE.ArrowHelper(new THREE.Vector3(0, -1, 0), new THREE.Vector3(), 0.1, 0xc0392b, 0.03, 0.02);
+const aAssist = new THREE.ArrowHelper(new THREE.Vector3(0, 0, -1), new THREE.Vector3(), 0.1, 0xe04a1f, 0.03, 0.02);
+const aPush = new THREE.ArrowHelper(new THREE.Vector3(0, 1, 0), new THREE.Vector3(), 0.05, 0x1f6f8b, 0.02, 0.014);
+const aBack = new THREE.ArrowHelper(new THREE.Vector3(0, 0, -1), new THREE.Vector3(), 0.09, 0xc0392b, 0.03, 0.02);
+arrows.add(aLoad, aAssist, aPush, aBack);
+const labels = new THREE.Group(); scene.add(labels);
+function label(text, color = '#333') {
+  const c = document.createElement('canvas'), g = c.getContext('2d');
+  g.font = 'bold 28px sans-serif';
+  c.width = Math.ceil(g.measureText(text).width) + 24; c.height = 44;
+  g.font = 'bold 28px sans-serif';
+  g.fillStyle = 'rgba(255,255,255,0.88)'; g.fillRect(0, 0, c.width, c.height);
+  g.fillStyle = color; g.fillRect(0, 0, 5, c.height);
+  g.fillStyle = '#222'; g.textBaseline = 'middle'; g.fillText(text, 14, 23);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false }));
+  sp.scale.set(0.026 * c.width / c.height, 0.026, 1);
+  labels.add(sp); return sp;
+}
+const XL_ = sx + 0.10;   // 이름표는 오른쪽 바깥에 띄운다
+const Lb = {
+  seat: label('좌판'), pivot: label('좌판 앞 피벗'), axis: label('지렛대 축 = 뒷바퀴 축'), lever: label('지렛대 (코까지)'), sector: label('부채꼴 팔 (호 홈·톱니)'),
+  link: label('들어올림 링크'), gas: label('보조 스프링', '#e04a1f'), slider: label('슬라이더·연결봉', '#e04a1f'),
+  pinB: label('스프링 고정 핀 = 계측 팔 피벗', '#1f6f8b'), arm: label('계측 팔 (긴 팔)', '#1f6f8b'), toggle: label('넘어가는 받침 (롤러·꼬리)', '#0b3c5d'), delay: label('지연 댐퍼 (양끝 핀)', '#5b3fd1'),
+  ret: label('복귀 스프링', '#2e7d32'), rail: label('걸쇠 레일', '#2e7d32'), rodh: label('걸쇠 막대', '#2e7d32'), trip: label('걸쇠 벨크랭크', '#2e7d32'),
+  lock: label('등받이 바 + 좌판 뒤끝 걸쇠', '#d49a00'), brake: label('원심 브레이크·하강 댐퍼', '#5b3fd1'), cross: label('가로 파이프 (X자 지지대 대체)'),
+  foot: label('바닥 발', '#8e44ad'), lift: label('크랭크·장공 막대', '#8e44ad')
+};
+Lb.pivot.position.set(XL_, P.y + 0.05, P.z + 0.05);
+Lb.axis.position.set(XL_, 0.335, O.z - 0.20);
+Lb.pinB.position.set(XL_, 0.215, B.z - 0.04);
+Lb.lock.position.set(XL_, 0.66, -0.30);
+Lb.delay.position.set(XL_, 0.225, 0.34);
+Lb.trip.position.set(XL_, 0.385, 0.31);
+Lb.toggle.position.set(XL_, 0.305, 0.35);
+Lb.rodh.position.set(XL_, 0.49, -0.03);
+Lb.rail.position.set(XL_, 0.47, -0.27);
+Lb.brake.position.set(-sx - 0.12, O.y + 0.05, O.z);
+Lb.cross.position.set(0, 0.22, 0.24);
+Lb.lift.position.set(XL_, 0.255, -0.36);
+
+// =====================================================================
+// 3. 상태 → 자세
+// =====================================================================
+const el = id => document.getElementById(id);
+let mass = 70, bmm = 250, T = 0, playing = false, cur = null, mCache = null;
+const clamp01 = v => Math.min(1, Math.max(0, v)), smooth = u => u * u * (3 - 2 * u), lerp = (a, b, u) => a + (b - a) * u;
+const DESC = [
+  '① 앉기·계측 — 좌판이 33° 올라간 상태에서 앉는다(바닥 발은 이미 바닥을 짚고 있다). 지렛대 코가 받침의 롤러를 누르면 받침이 계측 팔의 짧은 팔(30 mm)을 누르고, 긴 팔(240 mm) 끝이 8배만큼 올라가며 슬라이더 핀을 호 홈을 따라 밀어 올린다. 받침은 뒤로 약 6° 기울어 서 있어서 하중이 걸리는 순간부터 뒤로 누우려 하지만, 지연 댐퍼가 꼬리를 붙잡고 있어 계측이 끝날 때까지 거의 움직이지 않는다.',
+  '② 지연·걸쇠 — 사용자는 아무것도 하지 않는다. 받침이 아래 핀을 중심으로 천천히 뒤로 눕고, 롤러는 지렛대 코 아랫면을 따라 뒤로 구른다. 그만큼 꼬리 핀이 앞으로 나가 지연 댐퍼를 누른다(댐퍼는 양끝 핀이라 일직선인 채 방향만 조금 바뀐다). 꼬리 핀이 약 2.6 mm 나가면 걸쇠 벨크랭크가 걸쇠 막대를 뒤로 밀어 걸쇠가 톱니에 물리고(슬라이더 잠김), 약 5 mm 나가면 댐퍼가 놓아 받침이 코 밑에 붙은 채 뒤로 눕기 시작한다. 무거울수록 빠르다.',
+  '③ 하강·기대기 — 좌판이 내려가면서 부채꼴 팔이 앞으로 돌아 보조 스프링을 누른다(에너지 저장). 받침은 롤러가 코 아랫면에 붙은 채 뒤로 누워 지렛대와 아래 레일 사이에 들어간다. 좌판이 약 10° 아래로 내려오면 지렛대 축의 크랭크가 장공 막대로 바닥 발을 들어 올린다. 좌판이 수평이 된 뒤 등받이에 기대면 등받이 바 아래의 걸쇠 손가락이 좌판 뒤끝을 물어 모든 관절이 고정된다.',
+  '④ 일어서기 — 일어서려고 몸을 앞으로 숙이면 등이 등받이 바에서 떨어지고, 걸쇠 손가락이 뒤로 빠져 좌판이 풀린다. 좌판이 약 10° 올라가면 바닥 발이 내려와 바닥을 짚는다(이후 휠체어가 뒤로 밀리지 않는다). 엉덩이 하중이 줄어드는 만큼 보조 스프링이 부채꼴 팔을 밀어 좌판을 33°까지 올린다. 받침은 댐퍼 안의 스프링에 밀려 코를 따라 다시 선다. 지렛대 축의 원심 브레이크가 속도를 제한한다.',
+  '⑤ 복귀 — 좌판이 끝까지 올라오면 받침이 처음 자리에 서 있고, 꼬리 핀이 물러난 만큼 걸쇠 벨크랭크가 돌아와 걸쇠 레일이 걸쇠를 푼다. 복귀 스프링이 슬라이더를 계측 팔 끝까지 되돌린다. 바닥 발은 좌판이 다시 내려갈 때까지 바닥을 짚고 있다.'
+];
+function stateAt(T, m) {
+  const st = Math.min(4, Math.floor(T)), u = clamp01(T - st), e = smooth(u);
+  const q = { st, load: 0, D: 0, u: C.u0, latch: 0, psi: C.psi0, ph: PH_UP, back: 0, lock: 0, time: 0, held: 1 };
+  if (st === 0) { q.load = e; q.D = e * m.D; q.psi = psiAt(q.D, 0); q.ph = leverOf(q.D, q.psi).ph; q.u = C.u0 + ELL * q.D; }
+  else if (st === 1) {
+    q.load = 1;
+    if (u < 0.8) {
+      q.D = m.D; q.psi = psiAt(m.D, u < 0.5 ? XL * u / 0.5 : lerp(XL, XR, (u - 0.5) / 0.3)); q.ph = leverOf(m.D, q.psi).ph;
+    } else {       // 댐퍼가 놓은 뒤: 받침이 하중을 못 받으므로 계측 팔이 처음 자리로 돌아가고 좌판이 내려가기 시작한다
+      const r = smooth((u - 0.8) / 0.2); q.D = m.D * (1 - r); q.ph = m.phR - 0.04 * r; q.psi = psiDown(q.ph, q.D); q.held = 0;
+    }
+    q.time = u < 0.5 ? m.tL * u / 0.5 : m.tL + (m.tR - m.tL) * clamp01((u - 0.5) / 0.3);
+    q.latch = clamp01((u - 0.45) / 0.1); q.u = lerp(m.u, m.ul, clamp01((u - 0.45) / 0.1));
+  } else if (st === 2) {
+    q.load = 1; q.latch = 1; q.held = 0; q.u = m.ul; q.ph = lerp(m.phR - 0.04, 0, smooth(clamp01(u / 0.65))); q.psi = psiDown(q.ph, 0);
+    q.back = smooth(clamp01((u - 0.7) / 0.25)); q.lock = q.back >= 1 ? 1 : 0;
+  } else if (st === 3) {
+    q.latch = 1; q.held = 0; q.u = m.ul; q.back = 1 - smooth(clamp01(u / 0.15)); q.lock = u < 0.01 ? 1 : 0;
+    const r = smooth(clamp01((u - 0.15) / 0.85)); q.ph = lerp(0, PH_UP, r); q.load = 1 - r; q.psi = psiDown(q.ph, 0);
+  } else {
+    q.latch = 1 - clamp01(u / 0.25); q.u = lerp(m.ul, C.u0, smooth(clamp01((u - 0.25) / 0.5)));
+  }
+  q.th = thetaOf(q.ph);
+  q.ua = C.u0 + ELL * q.D;                  // 계측 팔 끝 위치 (호 길이)
+  q.gap = q.u - q.ua;                       // 슬라이더와 계측 팔 끝 사이
+  q.lam = legAngle(q.ph);                   // 바닥 발 다리 각
+  return q;
+}
+function apply() {
+  const b = bmm / 1000;
+  if (!mCache || mCache.mass !== mass || mCache.bmm !== bmm) mCache = { mass, bmm, m: measure(mass, b) };
+  const m = mCache.m, q = stateAt(T, m);
+  cur = { m, q };
+  seatG.rotation.x = q.th;
+  const Sx = Sp(q.th), Ex = Ep(q.ph), Qx = Qp(q.u, q.ph), An = Qp(0.004, q.ph);
+  const L = dist(Qx, B), dz = (Qx.z - B.z) / L, dy = (Qx.y - B.y) / L;
+  const cp = crankPin(q.ph), lg = lugOf(q.lam), lu = dist(cp, lg);
+  for (const p of sideParts) {
+    const s = p.s;
+    p.g.rotation.x = -(q.ph - PH_UP);
+    setRod(p.link, [s * X1, Ex.y, Ex.z], [s * X1, Sx.y, Sx.z]);
+    setRod(p.gasBody, [s * X2, B.y, B.z], [s * X2, B.y + dy * 0.12, B.z + dz * 0.12]);
+    setRod(p.gasRod, [s * X2, B.y + dy * 0.12, B.z + dz * 0.12], [s * X2, Qx.y, Qx.z]);
+    p.pawl.position.set(s * (sx - 0.013 + 0.005 * q.latch), Qx.y, Qx.z);
+    setRod(p.ret, [s * (sx + 0.006), An.y, An.z], [s * (sx + 0.006), Qx.y, Qx.z]);
+    // 바닥 발: 다리 각, 크랭크, 장공 막대(귀에서 위로 막대 길이만큼. 발이 닿은 뒤에는 크랭크 핀이 장공 안에서 내려온다)
+    p.leg.rotation.x = q.lam; p.crank.rotation.x = -q.ph;
+    const xl = s * (FX + 0.012);
+    setRod(p.lift, [xl, lg.y, lg.z], [xl, lg.y + (cp.y - lg.y) / lu * (LROD + 0.004), lg.z + (cp.z - lg.z) / lu * (LROD + 0.004)]);
+  }
+  setRod(crossBar, [-(sx + 0.008), Qx.y, Qx.z], [sx + 0.008, Qx.y, Qx.z]);
+  // 계측 팔 (피벗 = 스프링 고정 핀): 긴 팔 끝이 슬라이더를 밀고, 짧은 팔 끝에 받침이 선다
+  const ga = armAng(q.ua), bp = Bp(q.D);
+  setRod(armLong, [XA, B.y, B.z], [XA, B.y + (ELL + 0.01) * Math.sin(ga), B.z + (ELL + 0.01) * Math.cos(ga)]);
+  setRod(armShort, [XA, B.y, B.z], [XA, bp.y, bp.z]);
+  // 넘어가는 받침: 아래 핀(짧은 팔 끝)을 중심으로 돈다. 윗끝 롤러는 지렛대 코 아랫면에 닿아 있고, 꼬리 핀에 지연 댐퍼가 달린다
+  const sn = Math.sin(q.ph + q.psi), cs = Math.cos(q.ph + q.psi);
+  const c = { z: bp.z - LS * sn, y: bp.y + LS * cs }, tp = { z: bp.z + C.hT * sn, y: bp.y - C.hT * cs };
+  setRod(strut, [XS, tp.y, tp.z], [XS, c.y, c.z]);
+  setRod(lip, [XS - 0.003, c.y, c.z], [sx + 0.004, c.y, c.z]);
+  setRod(footPin, [XA - 0.004, bp.y, bp.z], [XS + 0.004, bp.y, bp.z]);
+  setRod(tailPin, [XS - 0.004, tp.y, tp.z], [XT + 0.003, tp.y, tp.z]);
+  // 지연 댐퍼: 프레임 쪽 핀 DF 와 꼬리 핀을 잇는 한 직선 (몸통 55 mm + 로드)
+  const Ld = dist(tp, DF), ez = (tp.z - DF.z) / Ld, ey = (tp.y - DF.y) / Ld;
+  setRod(dampBody, [XS, DF.y, DF.z], [XS, DF.y + ey * 0.055, DF.z + ez * 0.055]);
+  setRod(dampRod, [XS, DF.y + ey * 0.055, DF.z + ez * 0.055], [XS, tp.y, tp.z]);
+  q.damp = Ld;
+  // 걸쇠 벨크랭크 → 걸쇠 막대 → 걸쇠 레일 (걸쇠가 물리면 레일이 뒤로 밀린다)
+  tripG.rotation.x = TRIP * (1 - q.latch);
+  const sh = (0.436 - TP.y) * TRIP * q.latch;
+  railG.position.set(sx - 0.008, B.y, B.z - sh);
+  setRod(rodH, [XR_, 0.436, TP.z + (0.436 - TP.y) * TRIP - sh], [XR_, 0.436, railTop.z - sh]);
+  // 등받이 바 + 좌판 뒤끝 걸쇠
+  backG.rotation.x = -0.28 * q.back;
+  // 화살표: 사용자 하중(하중점), 보조 스프링이 슬라이더를 미는 힘, 계측 팔이 슬라이더를 미는 방향
+  q.Mload = Mload(mass, q.ph, b); q.Ms = Ms(q.u, q.ph); q.gasLen = L;
+  aLoad.visible = q.load > 0.02;
+  const lenR = 0.04 + 0.25 * q.load * mass / 120;
+  aLoad.position.set(0, P.y + b * Math.sin(q.th) + 0.02 + lenR, P.z - b * Math.cos(q.th)); aLoad.setLength(lenR, 0.03, 0.02);
+  aAssist.setDirection(new THREE.Vector3(0, dy, dz)); aAssist.position.set(sx - 0.06, Qx.y, Qx.z); aAssist.setLength(0.09, 0.03, 0.02);
+  aPush.visible = q.st === 0 && q.D > 1e-4;
+  aPush.setDirection(new THREE.Vector3(0, -Math.cos(ga), Math.sin(ga))); aPush.position.set(XA - 0.012, Qx.y - 0.012, Qx.z);
+  aBack.visible = q.back > 0.05; aBack.position.set(0, HB.y + 0.12, HB.z + 0.014 + 0.10);
+  // 움직이는 이름표
+  Lb.seat.position.set(-0.10, Sx.y + 0.07, Sx.z + 0.05);
+  Lb.link.position.set(XL_, (Sx.y + Ex.y) / 2 + 0.05, (Sx.z + Ex.z) / 2 + 0.10);
+  Lb.lever.position.set(XL_, O.y + 0.16 * Math.sin(q.ph) + 0.03, O.z + 0.10);
+  Lb.sector.position.set(XL_, Qp(0.14, q.ph).y + 0.03, Qp(0.14, q.ph).z - 0.06);
+  Lb.gas.position.set(XL_, (B.y + Qx.y) / 2 - 0.035, (B.z + Qx.z) / 2 - 0.02);
+  Lb.slider.position.set(XL_, Qx.y + 0.005, Qx.z - 0.12);
+  Lb.arm.position.set(XL_, B.y + 0.15 * Math.sin(ga) - 0.045, B.z + 0.15 * Math.cos(ga) - 0.05);
+  Lb.ret.position.set(XL_, 0.235, -0.20);
+  Lb.foot.position.set(XL_, FT.py - 0.6 * FT.len * Math.cos(q.lam), FT.pz - 0.6 * FT.len * Math.sin(q.lam) - 0.07);
+  readout();
+}
+const f1 = v => v.toFixed(1), f0 = v => v.toFixed(0), mm = v => (v * 1000).toFixed(1), pc = v => (v * 100).toFixed(1) + ' %', dg = v => (v / RAD).toFixed(1) + '°';
+function readout() {
+  const { m, q } = cur;
+  const rows = [
+    ['좌판 기울기 / 지렛대 각', dg(q.th) + ' / ' + dg(q.ph)],
+    ['사용자 하중 모멘트 (지렛대 축)', f1(q.load * q.Mload) + ' N·m (앉았을 때 ' + f1(q.Mload) + ')'],
+    ['보조 스프링 모멘트', f1(q.Ms) + ' N·m'],
+    ['보조율 (이 자세)', pc(q.Ms / q.Mload)],
+    ['계측 팔이 돈 각', dg(q.D)],
+    ['슬라이더 위치 u', mm(q.u) + ' mm (평형 ' + mm(m.u) + ', 잠김 ' + mm(m.ul) + ')'],
+    ['보조 스프링 길이', f0(q.gasLen * 1000) + ' mm'],
+    ['계측 팔 끝과 슬라이더', q.gap > 0.0005 ? '떨어짐' : '닿음 (밀고 있음)'],
+    ['받침 각 (하중이 걸린 뒤 시간)', dg(q.psi) + (q.st === 1 ? ' (' + q.time.toFixed(2) + ' s)' : '')],
+    ['지연 댐퍼 길이 (눌린 길이)', mm(q.damp) + ' mm (' + mm(C.LD - q.damp) + ')'],
+    ['받침', q.held ? (C.LD - q.damp > 0.0003 ? '댐퍼에 붙잡힌 채 눕는 중' : '받치고 있음') : '댐퍼가 놓음 (코 밑에 붙어 있음)'],
+    ['걸쇠 (슬라이더)', q.latch >= 1 ? '물림' : (q.latch > 0 ? '움직이는 중' : '풀림')],
+    ['등받이', q.back >= 1 ? '기댐' : (q.back > 0 ? '움직이는 중' : '떨어짐')],
+    ['좌판 뒤끝 걸쇠', q.lock ? '잠김 (모든 관절 고정)' : '풀림'],
+    ['바닥 발 (다리 각 / 발 높이)', dg(q.lam) + ' / ' + f0(Math.max(0, FT.py - FT.len * Math.cos(q.lam)) * 1000) + ' mm' + (q.lam <= FT.lam + 1e-6 ? ' — 바닥을 짚음' : ' — 들림')]
+  ];
+  el('now').innerHTML = rows.map(r => `<tr><th>${r[0]}</th><td class="n">${r[1]}</td></tr>`).join('');
+  el('desc').textContent = DESC[q.st];
+  document.querySelectorAll('[data-stage]').forEach(bn => bn.classList.toggle('on', +bn.dataset.stage === q.st));
+  el('tl').value = T;
+}
+function tables() {
+  el('massv').textContent = mass; el('distv').textContent = bmm;
+  const b = bmm / 1000;
+  let h = '<tr><th>체중 kg</th><th>계측 팔 회전</th><th>슬라이더 평형 / 잠김 (mm)</th><th>좌판 각 (계측 중)</th><th>보조율 평균</th><th>시작</th><th>끝</th><th>스프링 행정 (mm)</th><th>받침 하중 N (N)</th><th>지연 댐퍼 힘 (N)</th><th>받침 각 처음 / 걸쇠 / 놓음</th><th>걸쇠까지 (s)</th><th>댐퍼가 놓을 때까지 (s)</th><th>걸쇠 (N)</th><th>좌판 뒤끝 걸쇠 (N)</th><th>링크 (N)</th></tr>';
+  let maxStroke = 0;
+  for (let w = 40; w <= 120; w += 10) {
+    const m = measure(w, b); maxStroke = Math.max(maxStroke, m.stroke);
+    h += `<tr><td class="n">${w}</td><td class="n">${dg(m.D)}</td><td class="n">${mm(m.u)} / ${mm(m.ul)}</td><td class="n">${dg(thetaOf(m.phm))}</td><td class="n">${pc(m.avg)}</td><td class="n">${pc(m.start)}</td><td class="n">${pc(m.end)}</td>` +
+      `<td class="n">${mm(m.stroke)}</td><td class="n">${f0(m.N)}</td><td class="n">${f0(m.Fd)}</td><td class="n">${dg(m.p0)} / ${dg(m.pL)} / ${dg(m.pR)}</td><td class="n">${m.tL.toFixed(2)}</td><td class="n">${m.tR.toFixed(2)}</td><td class="n">${f0(m.latch)}</td><td class="n">${f0(m.seatlock)}</td><td class="n">${f0(m.link)}</td></tr>`;
+  }
+  el('result').innerHTML = h;
+  const cs = [
+    ['좌판 최대각 / 지렛대 회전 범위', dg(C.thUp) + ' / ' + dg(PH_UP)],
+    ['보조 스프링 힘', '400 N × 2'], ['호 반지름 = 계측 팔의 긴 팔', f0(ELL * 1000) + ' mm'], ['계측 팔의 짧은 팔 / 비', f0(RS * 1000) + ' mm / ' + C.i],
+    ['지렛대: 축–링크 핀 / 축–코 끝', f0(C.AR * 1000) + ' / ' + f0(LNOSE * 1000) + ' mm'],
+    ['앞 피벗–링크 / 링크 길이', f0(C.LP * 1000) + ' mm / ' + f0(LK * 1000) + ' mm'],
+    ['계측 스프링 (비틀림, 계측 팔 피벗)', f1(C.kth) + ' N·m/rad, 예압 ' + C.tau0.toFixed(2) + ' N·m'],
+    ['슬라이더 초기 위치 u₀ / 톱니 피치', f0(C.u0 * 1000) + ' mm / ' + mm(C.pitch) + ' mm'], ['목표 평균 보조율', pc(C.target)],
+    ['보조 스프링 늘인 길이 / 최대 행정', f0(ELL * 1000) + ' mm / ' + mm(maxStroke) + ' mm'],
+    ['넘어가는 받침: 길이 / 꼬리 / 롤러 반지름', mm(LS) + ' / ' + f0(C.hT * 1000) + ' / ' + f0(C.RR * 1000) + ' mm'],
+    ['지연 댐퍼: 길이 / 걸쇠 / 놓음 (눌린 길이)', f0(C.LD * 1000) + ' / ' + (XL * 1000).toFixed(2) + ' / ' + (XR * 1000).toFixed(2) + ' mm'],
+    ['지연 댐퍼 (회전 환산)', f1(C.cr) + ' N·m·s/rad'],
+    ['바닥 발: 다리 / 짚는 각 / 든 각', f0(FT.len * 1000) + ' mm / ' + dg(FT.lam) + ' / ' + dg(FT.stow)],
+    ['바닥 발이 닿는 때 (지렛대 / 좌판)', dg(PH_TD) + ' / ' + dg(thetaOf(PH_TD))],
+    ['바닥 발이 버티는 데 필요한 바닥 마찰', Math.tan(FT.lam).toFixed(2) + ' 이상'],
+    ['부품 높이 범위 (좌판 수평, 바닥 발 제외)', '0.271–0.444 m (아래 레일 윗면–좌석 레일 아랫면) 안']
+  ];
+  el('consts').innerHTML = cs.map(r => `<tr><th>${r[0]}</th><td class="n">${r[1]}</td></tr>`).join('');
+}
+
+// =====================================================================
+// 4. 조작
+// =====================================================================
+let stopAt = 5;
+el('mass').addEventListener('input', e => { mass = +e.target.value; tables(); apply(); });
+el('dist').addEventListener('input', e => { bmm = +e.target.value; tables(); apply(); });
+el('tl').addEventListener('input', e => { T = +e.target.value; playing = false; el('play').textContent = '재생'; apply(); });
+document.querySelectorAll('[data-stage]').forEach(bn => bn.addEventListener('click', () => { T = +bn.dataset.stage; playing = true; el('play').textContent = '일시정지'; stopAt = T + 0.999; apply(); }));
+el('play').addEventListener('click', () => { playing = !playing; stopAt = 5; if (playing && T >= 5) T = 0; el('play').textContent = playing ? '일시정지' : '재생'; });
+el('reset').addEventListener('click', () => { T = 0; playing = false; el('play').textContent = '재생'; apply(); });
+el('names').addEventListener('change', e => { labels.visible = e.target.checked; });
+el('arrows').addEventListener('change', e => { arrows.visible = e.target.checked; });
+el('wheel').addEventListener('change', e => { wheels.visible = !e.target.checked; });
+const baseOp = {}; for (const key in M) baseOp[key] = M[key].transparent ? M[key].opacity : 1;
+function ghost(on) {
+  for (const key in M) { const mt = M[key]; mt.transparent = on || baseOp[key] < 1; mt.opacity = on ? baseOp[key] * 0.25 : baseOp[key]; mt.depthWrite = !on; mt.needsUpdate = true; }
+}
+el('ghost').addEventListener('change', e => ghost(e.target.checked));
+ghost(true);
+
+const target = new THREE.Vector3(0, 0.40, 0);
+let rad = 1.75, theta = 1.05, phi = 1.25;
+function place() {
+  camera.position.set(target.x + rad * Math.sin(phi) * Math.sin(theta), target.y + rad * Math.cos(phi), target.z + rad * Math.sin(phi) * Math.cos(theta));
+  camera.lookAt(target);
+}
+const views = { iso: [1.05, 1.25, 1.75], side: [Math.PI / 2, Math.PI / 2, 1.3], side2: [-Math.PI / 2, Math.PI / 2, 1.3], rear: [Math.PI, 1.45, 1.6], top: [0, 0.001, 1.9], zoom: [Math.PI / 2, Math.PI / 2, 0.55] };
+document.querySelectorAll('[data-view]').forEach(bn => bn.addEventListener('click', () => { [theta, phi, rad] = views[bn.dataset.view]; const zm = bn.dataset.view === 'zoom'; target.set(0, zm ? 0.35 : 0.40, zm ? 0.09 : 0); if (zm) { labels.visible = false; el('names').checked = false; } place(); }));
+let drag = null;
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+canvas.addEventListener('pointerdown', e => { drag = { x: e.clientX, y: e.clientY, b: e.button }; canvas.setPointerCapture(e.pointerId); });
+canvas.addEventListener('pointerup', () => { drag = null; });
+canvas.addEventListener('pointermove', e => {
+  if (!drag) return;
+  const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+  drag.x = e.clientX; drag.y = e.clientY;
+  if (drag.b === 2) {
+    const right = new THREE.Vector3().subVectors(camera.position, target).cross(camera.up).normalize();
+    target.addScaledVector(right, dx * 0.0015 * rad); target.y += dy * 0.0015 * rad;
+  } else { theta -= dx * 0.008; phi = Math.min(Math.PI - 0.01, Math.max(0.01, phi - dy * 0.008)); }
+  place();
+});
+canvas.addEventListener('wheel', e => { e.preventDefault(); rad = Math.min(8, Math.max(0.3, rad * (e.deltaY > 0 ? 1.1 : 0.9))); place(); }, { passive: false });
+function resize() {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize);
+resize(); place(); tables(); apply();
+let last = performance.now();
+(function loop(now) {
+  const dt = Math.min(0.1, ((now || last) - last) / 1000); last = now || last;
+  if (playing) {
+    T = Math.min(stopAt, T + dt / 2.5);          // 한 단계 2.5 초
+    if (T >= stopAt) { playing = false; el('play').textContent = '재생'; }
+    apply();
+  }
+  renderer.render(scene, camera);
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
