@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>Passive Perching Quadrotor — Bird Leg + Gimbal + Tail</title>
+<style>
+:root{--forest:#1E3A2F;--moss:#4F7A5A;--amber:#E3A13B;--ink:#1B1F1D;--muted:#5F6B66;--tint:#EEF3EF;--red:#C0392B;--blue:#2C6FB7}
+*{box-sizing:border-box}
+body{margin:0;font-family:"Malgun Gothic","Segoe UI",Arial,sans-serif;color:var(--ink);background:#F4F7F5;font-size:13px}
+header{background:var(--forest);color:#fff;padding:12px 22px}
+header h1{margin:0;font-size:20px}
+header p{margin:3px 0 0;color:#C9D6CD;font-size:12.5px;font-style:italic}
+.wrap{display:grid;grid-template-columns:1fr 360px;gap:14px;padding:14px 20px}
+.card{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.08);padding:12px}
+.card h3{margin:0 0 6px;font-size:14.5px}
+.card h3 small{font-weight:400;color:var(--muted);font-style:italic}
+#view{width:100%;display:block;border-radius:9px;background:linear-gradient(#E8F1F7,#F7F9F8);cursor:grab}
+.row3{display:grid;grid-template-columns:1.1fr 1fr;gap:14px;margin-top:14px}
+table{border-collapse:collapse;width:100%;font-size:12.5px}
+th,td{padding:4px 6px;border-bottom:1px solid #E6ECE8;text-align:right}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--muted);font-weight:600;font-size:11.5px}
+.big{font-weight:700;color:var(--forest)}
+.status{display:inline-block;font-weight:700;padding:3px 10px;border-radius:20px;font-size:12.5px}
+.ok{background:#DCEFE2;color:#1E6B3A}.bad{background:#F7D9D5;color:var(--red)}
+.panel .grp{margin-bottom:12px}
+.panel h4{margin:0 0 5px;font-size:12.5px;color:var(--forest);border-bottom:1px solid #E1E8E4;padding-bottom:3px}
+label.r{display:grid;grid-template-columns:1fr 64px;align-items:center;font-size:12px;margin:4px 0}
+label.r input[type=range]{grid-column:1/3;width:100%}
+label.r span{text-align:right;font-weight:700;color:var(--forest)}
+.chk{display:flex;gap:6px;align-items:center;font-size:12px;margin:3px 0}
+.btns{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+button{font-family:inherit;font-size:12px;padding:7px;border:0;border-radius:7px;cursor:pointer;background:var(--tint);color:var(--ink)}
+button.p{background:var(--forest);color:#fff}button.a{background:var(--amber);font-weight:700}
+button.sel{outline:2px solid var(--amber)}
+.note{font-size:11px;color:var(--muted);line-height:1.5}
+.bar{height:7px;background:#E5E9E7;border-radius:4px;overflow:hidden;min-width:60px}
+.bar>div{height:100%}
+canvas.ch{width:100%;display:block}
+.legend{font-size:11.5px;color:var(--muted)}
+.legend i{display:inline-block;width:14px;height:3px;vertical-align:middle;margin:0 3px 0 9px}
+.pill{font-size:11px;padding:1px 6px;border-radius:10px;background:var(--tint)}
+.iso{font-size:22px;font-weight:700;color:var(--forest)}
+</style>
+</head>
+<body>
+<header>
+  <h1>수동형 퍼칭 쿼드로터 — 새 다리 · 수동 짐벌 · 진자 꼬리 3D 시뮬레이터</h1>
+  <p>DJI Mini 4 Pro–class drone on a passive 2-axis gimbal · bird-type legs (1-DOF knee, U-joint ankle) · 4 one-way dampers · pendulum tail · no sensors, no PID</p>
+</header>
+
+<div class="wrap">
+<div>
+  <div class="card">
+    <h3>3D 뷰 <small>drag = rotate · wheel = zoom · coils = springs · dashpots: orange = one-way, blue = two-way · color = load</small></h3>
+    <canvas id="view" width="1200" height="640"></canvas>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;gap:10px">
+      <span id="status" class="status ok">PERCHED · 버티는 중</span>
+      <span class="legend">load <i style="background:#3C9A5B"></i>low <i style="background:#E3A13B"></i>mid <i style="background:#C0392B"></i>high</span>
+      <label class="chk" style="margin:0">Display ×<input type="range" id="exag" min="1" max="20" step="1" value="5" style="width:90px"><b id="vExag">5</b></label>
+    </div>
+  </div>
+
+  <div class="row3">
+    <div class="card">
+      <h3>기체 진동 <small>Drone motion (true values) vs. platform</small></h3>
+      <table>
+        <tr><th>drone axis</th><th>now</th><th>peak</th><th>RMS (3 s)</th></tr>
+        <tr><td>x · surge 전후</td><td id="n_x"></td><td id="p_x" class="big"></td><td id="r_x"></td></tr>
+        <tr><td>y · sway 좌우</td><td id="n_y"></td><td id="p_y" class="big"></td><td id="r_y"></td></tr>
+        <tr><td>z · heave 상하</td><td id="n_z"></td><td id="p_z" class="big"></td><td id="r_z"></td></tr>
+        <tr><td>roll 롤</td><td id="n_roll"></td><td id="p_roll" class="big"></td><td id="r_roll"></td></tr>
+        <tr><td>pitch 피치 (nose-up +)</td><td id="n_pitch"></td><td id="p_pitch" class="big"></td><td id="r_pitch"></td></tr>
+        <tr><td>yaw 요</td><td id="n_yaw"></td><td id="p_yaw" class="big"></td><td id="r_yaw"></td></tr>
+        <tr><td style="color:#5F6B66">platform roll 플랫폼 롤</td><td id="n_proll"></td><td id="p_proll"></td><td id="r_proll"></td></tr>
+        <tr><td style="color:#5F6B66">platform pitch 플랫폼 피치</td><td id="n_ppitch"></td><td id="p_ppitch"></td><td id="r_ppitch"></td></tr>
+      </table>
+      <div style="display:flex;gap:18px;margin:8px 0 2px">
+        <div><div class="note">Drone ÷ platform tilt (RMS) · 자세 전달률</div><span class="iso" id="isoTxt">–</span></div>
+        <div class="note" style="max-width:300px">Below 1 = the gimbal isolates the drone from the platform's rocking. Goal (§6.2): below 0.3 for fast disturbances.</div>
+      </div>
+      <canvas id="chXYZ" class="ch" width="700" height="150" style="margin-top:6px"></canvas>
+      <div class="legend"><i style="background:#C0392B"></i>x <i style="background:#2E9E5B"></i>y <i style="background:#2C6FB7"></i>z (mm, drone)</div>
+      <canvas id="chRPY" class="ch" width="700" height="150" style="margin-top:6px"></canvas>
+      <div class="legend"><i style="background:#C0392B"></i>drone roll <i style="background:#2E9E5B"></i>drone pitch <i style="background:#9AA5A0"></i>platform pitch (deg)</div>
+    </div>
+    <div class="card">
+      <h3>스프링·댐퍼 하중 <small>Spring & damper loads (live / peak)</small></h3>
+      <table id="forces"></table>
+      <div class="note" style="margin-top:6px">Torques in N·m. Leg force = force each leg carries between branch and platform. Claw load = claw torque ÷ passive grip capacity (&gt;100% for 20 ms → slip).</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <h3>설계 비교 <small>Same disturbance, four designs — headless runs (true physics)</small></h3>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+      <button class="a" id="runCmp">▦ Run comparison for current scenario</button><span id="cmpInfo" class="note"></span>
+    </div>
+    <table id="cmp"></table>
+  </div>
+</div>
+
+<div class="card panel">
+  <div class="grp">
+    <h4>시나리오 · Scenario</h4>
+    <div class="btns">
+      <button id="sc_land">🛬 Landing 착지</button>
+      <button id="sc_vib">🌿 Branch vibration 가지 진동</button>
+      <button id="sc_wind">💨 Wind + gust 바람</button>
+      <button id="sc_all">⚡ All combined 복합</button>
+    </div>
+  </div>
+  <div class="grp">
+    <h4>착지 · Landing (applied at reset)</h4>
+    <label class="r">Sink speed 하강 속도 (m/s)<span id="v_vd"></span><input type="range" id="vd" min="0" max="1.5" step="0.05" value="0.9"></label>
+    <label class="r">Forward speed 전진 속도 (m/s)<span id="v_vf"></span><input type="range" id="vf" min="0" max="0.8" step="0.05" value="0.2"></label>
+  </div>
+  <div class="grp">
+    <h4>가지 진동 · Branch vibration (3-axis)</h4>
+    <label class="r">Frequency 주파수 (Hz)<span id="v_f"></span><input type="range" id="f" min="0.3" max="15" step="0.1" value="1.5"></label>
+    <label class="r">x amplitude (mm)<span id="v_ax"></span><input type="range" id="ax" min="0" max="8" step="0.5" value="2"></label>
+    <label class="r">y amplitude (mm)<span id="v_ay"></span><input type="range" id="ay" min="0" max="8" step="0.5" value="2"></label>
+    <label class="r">z amplitude (mm)<span id="v_az"></span><input type="range" id="az" min="0" max="8" step="0.5" value="2"></label>
+  </div>
+  <div class="grp">
+    <h4>바람 · Wind (drag on the drone)</h4>
+    <label class="r">Mean speed 평균 풍속 (m/s)<span id="v_ws"></span><input type="range" id="ws" min="0" max="12" step="0.5" value="0"></label>
+    <label class="r">Gust 돌풍 (m/s)<span id="v_wg"></span><input type="range" id="wg" min="0" max="6" step="0.5" value="0"></label>
+    <label class="r">Direction 방향 (0°=정면, 90°=측면)<span id="v_wd"></span><input type="range" id="wd" min="0" max="180" step="15" value="45"></label>
+  </div>
+  <div class="grp">
+    <h4>짐벌 · Passive gimbal (hip)</h4>
+    <label class="chk"><input type="checkbox" id="gLock"> Lock gimbal 짐벌 고정 (= no gimbal)</label>
+    <label class="r">Pendulosity d — CoM below pivot (mm)<span id="v_dd"></span><input type="range" id="dd" min="1" max="30" step="1" value="8"></label>
+    <label class="r">Gimbal damping (N·m·s/rad, two-way)<span id="v_cg"></span><input type="range" id="cg" min="0.001" max="0.05" step="0.001" value="0.004"></label>
+  </div>
+  <div class="grp">
+    <h4>다리 · Legs</h4>
+    <label class="chk"><input type="checkbox" id="dOn" checked> Dampers 댐퍼 (knee & ankle pitch one-way, ankle roll two-way)</label>
+    <label class="r">Knee one-way damper (N·m·s/rad)<span id="v_ck"></span><input type="range" id="ck" min="0.005" max="0.2" step="0.005" value="0.05"></label>
+    <label class="r">Ankle-pitch one-way damper<span id="v_ca"></span><input type="range" id="ca" min="0.005" max="0.2" step="0.005" value="0.03"></label>
+    <label class="r">Ankle-roll two-way damper<span id="v_cr"></span><input type="range" id="cr" min="0.005" max="0.2" step="0.005" value="0.02"></label>
+    <label class="r">Reverse-direction ratio 역방향 비율<span id="v_rv"></span><input type="range" id="rv" min="0" max="1" step="0.05" value="0.05"></label>
+    <label class="r">Leg spring scale 다리 스프링 (×)<span id="v_ks"></span><input type="range" id="ks" min="0.3" max="2" step="0.05" value="1"></label>
+    <label class="r">Claw stiffness 발톱 강성 (N·m/rad)<span id="v_kg"></span><input type="range" id="kg" min="0.3" max="8" step="0.1" value="3"></label>
+  </div>
+  <div class="grp">
+    <h4>꼬리 · Pendulum tail</h4>
+    <label class="chk"><input type="checkbox" id="tOn" checked> Tail absorber 진자 꼬리</label>
+    <label class="r">Tail mass (g)<span id="v_mt"></span><input type="range" id="mt" min="5" max="80" step="5" value="20"></label>
+    <label class="r">Tail length (m)<span id="v_lt"></span><input type="range" id="lt" min="0.04" max="0.2" step="0.01" value="0.1"></label>
+    <div class="note" id="tuneInfo"></div>
+  </div>
+  <div class="grp">
+    <h4>실행 · Run</h4>
+    <div class="btns">
+      <button class="p" id="reset">↺ Reset 재시작</button>
+      <button id="pause">❚❚ Pause</button>
+      <button id="slow">🐢 Slow ×0.2</button>
+      <button id="lbl">🏷 Labels</button>
+    </div>
+  </div>
+  <div class="grp">
+    <h4>고유진동수 · Natural frequencies</h4>
+    <div id="modes" class="note"></div>
+  </div>
+  <div class="note">
+    <b>Model · 모델</b><br>
+    • 10 DOF: platform (6) + passive 2-axis gimbal carrying the drone (roll, pitch) + pendulum tail (2). RK4, Δt = 0.5 ms. Display shows <b>simulation time</b>; it may run slower than real time.<br>
+    • Drone: 249 g, inertia of a 298 × 373 × 101 mm body (DJI Mini 4 Pro class). Its CoM hangs <i>d</i> below the gimbal pivot.<br>
+    • Legs per side: rigid femur → knee (pitch; spring + one-way damper) → lower leg → ankle U-joint (pitch: spring + one-way damper; roll: spring + two-way damper) → foot → claw on the branch (rotational stiffness on 3 axes).<br>
+    • Leg segments are massless; their mass and the gimbal yoke are lumped into the platform (90 g).<br>
+    • Drag on the drone: C<sub>d</sub>A ≈ 0.012 m² (estimate). Grip capacity = lock + μ·η·N·r.<br>
+    • <b>All spring, damper, claw and tail values are design assumptions, not measurements.</b> Use this to choose directions; the test rig decides.
+  </div>
+</div>
+</div>
+
+<script>
+// ===== Passive perching quadrotor on a bird-leg + tail platform: 3D dynamics core =====
+// World: x forward, y left, z up. Branch axis along world y.
+// q (10): pelvis [x, y, z, roll φ, pitch θ, yaw ψ], gimbal [β pitch, α roll], tail [δ swing-back, ε swing-side]
+// Pelvis R_p = Rz(ψ)Ry(θ)Rx(φ). Drone R_d = R_p · Ry(β) · Rx(α)  (2-axis passive gimbal, no yaw DOF).
+// Legs (massless serial chains, one per side): pelvis —(rigid femur)— knee [pitch] — lower leg — ankle U-joint [pitch, roll] — foot — claw on branch.
+// Claw contact: rotations about branch axis (grip pitch), about x (grip roll) and twist (grip yaw) are resisted by claw stiffness.
+// Elastic coordinates per leg: knee, ankle pitch, ankle roll, grip pitch, grip roll, grip yaw  →  Q = Σ (∂c/∂q)ᵀ τ  (virtual work).
+
+const PQ = (() => {
+  const G = 9.81, D2R = Math.PI / 180;
+
+  function defaults() {
+    return {
+      // ---- drone: DJI Mini 4 Pro class ----
+      mD: 0.249, ID: [0.0031, 0.0021, 0.0047],      // roll, pitch, yaw inertia (unfolded box estimate)
+      gimbalPivot: [0, 0, 0.012],                    // pivot in pelvis frame [m]
+      d: 0.008,                                      // pendulosity: drone CoM below the gimbal pivot [m]
+      gimbalLocked: false, kGim: 0.002, cGim: 0.004, gimStop: 30 * D2R,
+      // ---- pelvis + lumped leg mass ----
+      mP: 0.09, IP: [6e-4, 5e-4, 8e-4], hipY: 0.035,      // pelvis + gimbal yoke + lumped leg masses (legs are massless in the chain)
+      // ---- legs (scaled from RAVEN for a ~0.35 kg robot) ----
+      l1: 0.08, l2: 0.08, lf: 0.025,
+      a1: -60 * D2R, a2: -115 * D2R, a3: -70 * D2R, // femur, lower leg, foot directions in pelvis xz-plane
+      branchR: 0.012,
+      // springs [N m/rad]
+      kKnee: 1.5, kAnkP: 1.0, kAnkR: 0.8, kGripP: 3.0, kGripR: 1.5, kGripY: 1.0,
+      // dampers [N m s/rad]: knee & ankle pitch = one-way (compression), ankle roll = two-way
+      cKnee: 0.05, cAnkP: 0.03, cAnkR: 0.02, reverse: 0.05, dampers: true,
+      // ---- pendulum tail (on the pelvis) ----
+      tail: true, mT: 0.02, Lt: 0.10, tailPivot: [-0.03, 0, -0.01], delta0: 25 * D2R,
+      kTd: 0.01, kTe: 0.01, cTd: 0.001, cTe: 0.001,
+      // ---- aerodynamics: quadrotor drag ----
+      aero: true, rho: 1.225, CdA_x: 0.012, CdA_y: 0.012, CdA_z: 0.03, cop: [0, 0, 0.01],
+      // ---- claw grip capacity ----
+      grip: { lock: 0.08, mu: 0.5, eta: 8, pull: 4 },
+      limits: { pelvisTilt: 40 * D2R, droneTilt: 35 * D2R },
+    };
+  }
+
+  // ---------- math ----------
+  const rotM = (phi, th, psi) => {
+    const cf = Math.cos(phi), sf = Math.sin(phi), ct = Math.cos(th), st = Math.sin(th), cp = Math.cos(psi), sp = Math.sin(psi);
+    return [[cp * ct, cp * st * sf - sp * cf, cp * st * cf + sp * sf], [sp * ct, sp * st * sf + cp * cf, sp * st * cf - cp * sf], [-st, ct * sf, ct * cf]];
+  };
+  const Ry = b => { const c = Math.cos(b), s = Math.sin(b); return [[c, 0, s], [0, 1, 0], [-s, 0, c]]; };
+  const Rx = a => { const c = Math.cos(a), s = Math.sin(a); return [[1, 0, 0], [0, c, -s], [0, s, c]]; };
+  const mm = (A, B) => A.map(r => [0, 1, 2].map(j => r[0] * B[0][j] + r[1] * B[1][j] + r[2] * B[2][j]));
+  const mv = (R, v) => [R[0][0] * v[0] + R[0][1] * v[1] + R[0][2] * v[2], R[1][0] * v[0] + R[1][1] * v[1] + R[1][2] * v[2], R[2][0] * v[0] + R[2][1] * v[1] + R[2][2] * v[2]];
+  const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]], sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+  const scl = (a, s) => [a[0] * s, a[1] * s, a[2] * s], dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const wrap = x => Math.atan2(Math.sin(x), Math.cos(x));
+  const dir = a => [Math.cos(a), 0, Math.sin(a)];
+  function solve(A, b) {
+    const n = b.length, M = A.map((r, i) => r.concat([b[i]]));
+    for (let i = 0; i < n; i++) {
+      let p = i; for (let r = i + 1; r < n; r++) if (Math.abs(M[r][i]) > Math.abs(M[p][i])) p = r;
+      [M[i], M[p]] = [M[p], M[i]];
+      for (let r = i + 1; r < n; r++) { const f = M[r][i] / M[i][i]; for (let c = i; c <= n; c++) M[r][c] -= f * M[i][c]; }
+    }
+    const x = new Array(n).fill(0);
+    for (let i = n - 1; i >= 0; i--) { let s = M[i][n]; for (let c = i + 1; c < n; c++) s -= M[i][c] * x[c]; x[i] = s / M[i][i]; }
+    return x;
+  }
+  function inertiaPts(m, I) {
+    const S = (I[0] + I[1] + I[2]) / 2, a = Math.sqrt(S / (0.8 * m));
+    const mx = (I[1] + I[2] - I[0]) / 2 / (a * a), my = (I[0] + I[2] - I[1]) / 2 / (a * a), mz = (I[0] + I[1] - I[2]) / 2 / (a * a);
+    return [{ m: m - mx - my - mz, b: [0, 0, 0] }, { m: mx / 2, b: [a, 0, 0] }, { m: mx / 2, b: [-a, 0, 0] },
+      { m: my / 2, b: [0, a, 0] }, { m: my / 2, b: [0, -a, 0] }, { m: mz / 2, b: [0, 0, a] }, { m: mz / 2, b: [0, 0, -a] }];
+  }
+
+  // ---------- model ----------
+  function frames(M, q) {
+    const P = M.P, Rp = rotM(q[3], q[4], q[5]), p = [q[0], q[1], q[2]];
+    const Rd = mm(mm(Rp, Ry(q[6])), Rx(q[7]));
+    const piv = add(p, mv(Rp, P.gimbalPivot));
+    const Dc = add(piv, mv(Rd, [0, 0, -P.d]));
+    return { Rp, Rd, p, piv, Dc };
+  }
+  function tailDir(d, e) { return [-Math.sin(d) * Math.cos(e), Math.sin(e), -Math.cos(d) * Math.cos(e)]; }
+  function points(M, q) {
+    const P = M.P, F = frames(M, q), out = [];
+    for (const pt of M.dPts) out.push({ m: pt.m, x: add(F.Dc, mv(F.Rd, pt.b)) });
+    for (const pt of M.pPts) out.push({ m: pt.m, x: add(F.p, mv(F.Rp, pt.b)) });
+    if (P.tail) out.push({ m: P.mT, x: add(F.p, mv(F.Rp, add(P.tailPivot, scl(tailDir(q[8], q[9]), P.Lt)))) });
+    return out;
+  }
+
+  // leg kinematics: elastic coordinates of both legs
+  function legs(M, q, bd) {
+    const P = M.P, Rp = rotM(q[3], q[4], q[5]), p = [q[0], q[1], q[2]], out = [];
+    const n = mv(Rp, [0, 1, 0]), e1 = mv(Rp, [1, 0, 0]), e2 = mv(Rp, [0, 0, 1]);
+    for (let s = 0; s < 2; s++) {
+      const sg = s === 0 ? 1 : -1;
+      const H = add(p, mv(Rp, [0, sg * P.hipY, 0]));
+      const K = add(H, mv(Rp, scl(dir(P.a1), P.l1)));
+      const F = add(M.feet0[s], bd);
+      const D = sub(F, K), dn = dot(D, n), Dp = sub(D, scl(n, dn));
+      const Dx = dot(Dp, e1), Dz = dot(Dp, e2), rho = Math.hypot(Dx, Dz), psi = Math.atan2(Dz, Dx);
+      const C = (P.l2 * P.l2 + dot(D, D) - P.lf * P.lf) / (2 * P.l2);
+      const ok = Math.abs(C / rho) <= 1;
+      const ac = Math.acos(Math.max(-1, Math.min(1, C / rho)));
+      const k1 = psi + ac, k2 = psi - ac;
+      const kap = Math.abs(wrap(k1 - P.a2)) < Math.abs(wrap(k2 - P.a2)) ? k1 : k2;
+      const A = add(K, add(scl(e1, P.l2 * Math.cos(kap)), scl(e2, P.l2 * Math.sin(kap))));
+      const f = sub(F, A), a = scl(sub(A, K), 1 / P.l2), b = cross(a, n);
+      const ankP = Math.atan2(dot(f, b), dot(f, a)), ankR = Math.asin(Math.max(-1, Math.min(1, dot(f, n) / P.lf)));
+      const gripP = Math.atan2(f[2], f[0]), gripR = Math.asin(Math.max(-1, Math.min(1, f[1] / P.lf)));
+      const gripY = Math.atan2(-n[0], n[1]);
+      out.push({ c: [wrap(kap - P.a1), ankP, sg * ankR, gripP, sg * gripR, gripY], H, K, A, F, ok, n });
+    }
+    return out;
+  }
+  function legVec(M, q, bd) { const L = legs(M, q, bd); return { v: L[0].c.concat(L[1].c), ok: L[0].ok && L[1].ok, L }; }
+  const NAMES = ['knee', 'ankle pitch', 'ankle roll', 'claw pitch', 'claw roll', 'claw yaw'];
+  function kOf(P, j) { return [P.kKnee, P.kAnkP, P.kAnkR, P.kGripP, P.kGripR, P.kGripY][j % 6]; }
+
+  function legGrad(M, q, bd) {
+    const e = 1e-6, g = Array.from({ length: 12 }, () => new Array(6).fill(0));
+    for (let k = 0; k < 6; k++) {
+      const qp = q.slice(), qm = q.slice(); qp[k] += e; qm[k] -= e;
+      const a = legVec(M, qp, bd).v, b = legVec(M, qm, bd).v;
+      for (let j = 0; j < 12; j++) g[j][k] = wrap(a[j] - b[j]) / (2 * e);
+    }
+    return g;
+  }
+  function gravQ(M, q) {
+    const n = 10, Q = new Array(n).fill(0), e = 1e-6, P0 = points(M, q);
+    for (let k = 0; k < n; k++) {
+      const qp = q.slice(), qm = q.slice(); qp[k] += e; qm[k] -= e;
+      const A = points(M, qp), B = points(M, qm);
+      for (let i = 0; i < P0.length; i++) Q[k] += -P0[i].m * G * (A[i].x[2] - B[i].x[2]) / (2 * e);
+    }
+    return Q;
+  }
+
+  function build(P) {
+    const M = { P, dPts: inertiaPts(P.mD, P.ID), pPts: inertiaPts(P.mP, P.IP) };
+    // nominal pose: pelvis level, feet on top of the branch at x = 0
+    const footB = add(add(scl(dir(P.a1), P.l1), scl(dir(P.a2), P.l2)), scl(dir(P.a3), P.lf));
+    M.q0 = [-footB[0], 0, -footB[2] + P.branchR, 0, 0, 0, 0, 0, P.delta0, 0];
+    M.feet0 = [[0, P.hipY, P.branchR], [0, -P.hipY, P.branchR]];
+    const q = M.q0, Qg = gravQ(M, q), g = legGrad(M, q, [0, 0, 0]);
+    const W = Array.from({ length: 12 }, (_, j) => kOf(P, j));
+    const Gm = Array.from({ length: 6 }, (_, k) => g.map(row => row[k]));
+    const A = Gm.map(r1 => Gm.map(r2 => r1.reduce((s, v, j) => s + v * W[j] * r2[j], 0)));
+    const lam = solve(A, Qg.slice(0, 6).map(v => -v));
+    const tau = W.map((w, j) => w * Gm.reduce((s, row, k) => s + row[j] * lam[k], 0));
+    const c = legVec(M, q, [0, 0, 0]).v;
+    M.rest = c.map((cj, j) => cj + tau[j] / kOf(P, j));
+    M.tauStatic = tau;
+    M.restT = [q[8] + (P.tail ? -Qg[8] / P.kTd : 0), q[9] + (P.tail ? -Qg[9] / P.kTe : 0)];
+    const qd = q.slice(); qd[2] -= 1e-5; const cd = legVec(M, qd, [0, 0, 0]).v;
+    M.compSign = c.map((cj, j) => Math.sign(wrap(cd[j] - cj)) || 1);
+    return M;
+  }
+
+  // ---------- environment ----------
+  function branch(ex, t) {
+    const w = 2 * Math.PI * ex.f, A = [ex.ax, ex.ay, ex.az], ph = [0, 0.7, 1.4];
+    return { d: A.map((a, i) => a * Math.sin(w * t + ph[i])), v: A.map((a, i) => a * w * Math.cos(w * t + ph[i])) };
+  }
+  function windVel(ex, t) {
+    const sp = ex.wind + ex.gust * (0.55 * Math.sin(2 * Math.PI * 0.6 * t) + 0.3 * Math.sin(2 * Math.PI * 1.7 * t + 1.1) + 0.15 * Math.sin(2 * Math.PI * 3.1 * t + 2.3));
+    const d = ex.windDir * D2R; return [-sp * Math.cos(d), -sp * Math.sin(d), 0];
+  }
+
+  // ---------- equations of motion ----------
+  function deriv(M, q, qd, t, ex, mon) {
+    const P = M.P, n = 10, e = 1e-6, h = 1e-4;
+    const Mm = Array.from({ length: n }, () => new Array(n).fill(0)), Q = new Array(n).fill(0);
+    const P0 = points(M, q), A = [], B = [];
+    for (let k = 0; k < n; k++) { const qp = q.slice(), qm = q.slice(); qp[k] += e; qm[k] -= e; A.push(points(M, qp)); B.push(points(M, qm)); }
+    const qa = q.slice(), qb = q.slice(); for (let k = 0; k < n; k++) { qa[k] += h * qd[k]; qb[k] -= h * qd[k]; }
+    const Pa = points(M, qa), Pb = points(M, qb);
+    for (let i = 0; i < P0.length; i++) {
+      const m = P0[i].m, J = [[], [], []];
+      for (let k = 0; k < n; k++) for (let x = 0; x < 3; x++) J[x][k] = (A[k][i].x[x] - B[k][i].x[x]) / (2 * e);
+      const b = [0, 1, 2].map(x => (Pa[i].x[x] - 2 * P0[i].x[x] + Pb[i].x[x]) / (h * h));
+      for (let r = 0; r < n; r++) {
+        for (let c = 0; c < n; c++) Mm[r][c] += m * (J[0][r] * J[0][c] + J[1][r] * J[1][c] + J[2][r] * J[2][c]);
+        Q[r] += -m * (J[0][r] * b[0] + J[1][r] * b[1] + J[2][r] * b[2]) - m * G * J[2][r];
+      }
+    }
+    if (!P.tail) { Mm[8][8] += 1e-4; Mm[9][9] += 1e-4; Q[8] += -0.05 * q[8] - 0.01 * qd[8]; Q[9] += -0.05 * q[9] - 0.01 * qd[9]; }
+    // legs
+    const br = branch(ex, t);
+    const L = legVec(M, q, br.d), g = legGrad(M, q, br.d);
+    const hp = 1e-5, q1 = q.slice(), q2 = q.slice();
+    for (let k = 0; k < 6; k++) { q1[k] += hp * qd[k]; q2[k] -= hp * qd[k]; }
+    const c1 = legVec(M, q1, add(br.d, scl(br.v, hp))).v, c2 = legVec(M, q2, sub(br.d, scl(br.v, hp))).v;
+    const cdot = c1.map((v, j) => wrap(v - c2[j]) / (2 * hp));
+    const tauS = [], tauD = [];
+    for (let j = 0; j < 12; j++) {
+      const typ = j % 6, ts = -kOf(P, j) * wrap(L.v[j] - M.rest[j]);
+      let td = 0;
+      if (typ === 0 || typ === 1) {           // knee, ankle pitch: one-way
+        const c = typ === 0 ? P.cKnee : P.cAnkP;
+        if (P.dampers) td = -c * (cdot[j] * M.compSign[j] > 0 ? 1 : P.reverse) * cdot[j];
+        else td = -0.002 * cdot[j];
+      } else if (typ === 2) {                  // ankle roll: two-way
+        td = -(P.dampers ? P.cAnkR : 0.002) * cdot[j];
+      } else {                                 // claw: light structural damping
+        td = -0.004 * cdot[j];
+      }
+      tauS.push(ts); tauD.push(td);
+      for (let k = 0; k < 6; k++) Q[k] += g[j][k] * (ts + td);
+    }
+    // gimbal
+    let kG = P.gimbalLocked ? 25 : P.kGim, cG = P.gimbalLocked ? 0.15 : P.cGim;
+    const tG = [6, 7].map(i => {
+      let tq = -kG * q[i] - cG * qd[i];
+      const s = P.gimStop; if (Math.abs(q[i]) > s) tq -= 5 * (q[i] - Math.sign(q[i]) * s) + 0.05 * qd[i];
+      Q[i] += tq; return tq;
+    });
+    // tail
+    let tT = [0, 0];
+    if (P.tail) { tT = [-P.kTd * (q[8] - M.restT[0]) - P.cTd * qd[8], -P.kTe * (q[9] - M.restT[1]) - P.cTe * qd[9]]; Q[8] += tT[0]; Q[9] += tT[1]; }
+    // aerodynamic drag on the drone (body axes), applied at the centre of pressure
+    let Faero = [0, 0, 0];
+    if (P.aero && (ex.wind > 0 || ex.gust > 0)) {
+      const Fr = frames(M, q), Vw = windVel(ex, t), Vrel = sub(Vw, [qd[0], qd[1], qd[2]]);
+      const u = [0, 1, 2].map(i => Fr.Rd[0][i] * Vrel[0] + Fr.Rd[1][i] * Vrel[1] + Fr.Rd[2][i] * Vrel[2]);
+      const Fb = [0.5 * P.rho * P.CdA_x * u[0] * Math.abs(u[0]), 0.5 * P.rho * P.CdA_y * u[1] * Math.abs(u[1]), 0.5 * P.rho * P.CdA_z * u[2] * Math.abs(u[2])];
+      Faero = mv(Fr.Rd, Fb);
+      const pt = qq => { const F2 = frames(M, qq); return add(F2.Dc, mv(F2.Rd, P.cop)); };
+      for (let k = 0; k < 8; k++) {
+        const qa2 = q.slice(), qb2 = q.slice(); qa2[k] += e; qb2[k] -= e;
+        const pa = pt(qa2), pb = pt(qb2);
+        Q[k] += dot(Faero, scl(sub(pa, pb), 1 / (2 * e)));
+      }
+    }
+    const qdd = solve(Mm, Q);
+    if (!mon) return qdd;
+    const legF = [0, 1].map(s => [0, 1, 2].map(k => { let f = 0; for (let j = 6 * s; j < 6 * s + 6; j++) f += g[j][k] * (tauS[j] + tauD[j]); return f; }));
+    return { qdd, tauS, tauD, tG, tT, legF, ok: L.ok, L: L.L, Faero, br };
+  }
+
+  function create(P) {
+    const M = build(P);
+    return { M, q: M.q0.slice(), qd: new Array(10).fill(0), t: 0, failed: false, reason: '', mon: null,
+      peak: { x: 0, y: 0, z: 0, roll: 0, pitch: 0, yaw: 0, proll: 0, ppitch: 0, legF: 0, grip: 0, acc: 0 }, acc: [0, 0, 0], prevDv: null };
+  }
+
+  // drone pose deviation (true values): CoM position [mm], attitude [deg]; plus pelvis attitude
+  function dev(S, q) {
+    q = q || S.q;
+    const F = frames(S.M, q), F0 = frames(S.M, S.M.q0), R = F.Rd;
+    const roll = Math.atan2(R[2][1], R[2][2]) / D2R, pitch = Math.asin(Math.max(-1, Math.min(1, R[2][0]))) / D2R, yaw = Math.atan2(R[1][0], R[0][0]) / D2R;
+    return { x: (F.Dc[0] - F0.Dc[0]) * 1000, y: (F.Dc[1] - F0.Dc[1]) * 1000, z: (F.Dc[2] - F0.Dc[2]) * 1000, roll, pitch, yaw,
+      proll: (q[3] - S.M.q0[3]) / D2R, ppitch: -(q[4] - S.M.q0[4]) / D2R, pyaw: (q[5] - S.M.q0[5]) / D2R };
+  }
+
+  function step(S, ex, dt) {
+    if (S.failed) return;
+    const M = S.M, n = 10, f = (q, qd, t) => deriv(M, q, qd, t, ex, false), ad = (a, b, h) => a.map((v, i) => v + h * b[i]);
+    const t = S.t;
+    const k1v = f(S.q, S.qd, t), k1q = S.qd;
+    const k2q = ad(S.qd, k1v, dt / 2), k2v = f(ad(S.q, k1q, dt / 2), k2q, t + dt / 2);
+    const k3q = ad(S.qd, k2v, dt / 2), k3v = f(ad(S.q, k2q, dt / 2), k3q, t + dt / 2);
+    const k4q = ad(S.qd, k3v, dt), k4v = f(ad(S.q, k3q, dt), k4q, t + dt);
+    for (let i = 0; i < n; i++) { S.q[i] += dt / 6 * (k1q[i] + 2 * k2q[i] + 2 * k3q[i] + k4q[i]); S.qd[i] += dt / 6 * (k1v[i] + 2 * k2v[i] + 2 * k3v[i] + k4v[i]); }
+    S.t += dt;
+    const mon = deriv(M, S.q, S.qd, S.t, ex, true); S.mon = mon;
+    const dv = dev(S), pk = S.peak;
+    for (const k of ['x', 'y', 'z', 'roll', 'pitch', 'yaw', 'proll', 'ppitch']) pk[k] = Math.max(pk[k], Math.abs(dv[k]));
+    pk.legF = Math.max(pk.legF, ...mon.legF.map(v => Math.hypot(...v)));
+    S.acc = [mon.qdd[0], mon.qdd[1], mon.qdd[2]]; pk.acc = Math.max(pk.acc, Math.hypot(...S.acc) / G);
+    const gp = M.P.grip; let gu = 0;
+    for (let s = 0; s < 2; s++) {
+      const N = mon.legF[s][2], tg = Math.abs(mon.tauS[6 * s + 3]);
+      const cap = gp.lock + gp.mu * gp.eta * Math.max(N, 0) * M.P.branchR;
+      gu = Math.max(gu, tg / cap, Math.max(-N, 0) / gp.pull);
+    }
+    S.gripUse = gu; pk.grip = Math.max(pk.grip, gu); S.gripOver = gu > 1 ? (S.gripOver || 0) + dt : 0;
+    const lim = M.P.limits;
+    if (!mon.ok) fail(S, 'Leg out of range · 다리 가동범위 초과');
+    else if (Math.abs(dv.proll) > lim.pelvisTilt / D2R || Math.abs(dv.ppitch) > lim.pelvisTilt / D2R) fail(S, 'Platform tipped over · 플랫폼 전복');
+    else if (Math.abs(dv.roll) > lim.droneTilt / D2R || Math.abs(dv.pitch) > lim.droneTilt / D2R) fail(S, 'Drone tilted > 35° · 기체 과도 기울어짐');
+    else if (S.gripOver > 0.02) fail(S, 'Claw slipped · 발톱 미끄러짐');
+    else if (!isFinite(S.q[0])) fail(S, 'Numerical blow-up');
+  }
+  function fail(S, r) { S.failed = true; S.reason = r; S.failT = S.t; }
+
+  // ---------- modal analysis ----------
+  function modes(P) {
+    const Md = build(Object.assign({}, P, { dampers: false, aero: false })), q = Md.q0, n = 10;
+    const nn = P.tail ? 10 : 8, ex = { f: 1, ax: 0, ay: 0, az: 0, wind: 0, gust: 0, windDir: 0 };
+    const massAt = qq => { const pts = points(Md, qq), Mm = Array.from({ length: n }, () => new Array(n).fill(0)), A = [], B = [];
+      for (let k = 0; k < n; k++) { const a = qq.slice(), b = qq.slice(); a[k] += 1e-6; b[k] -= 1e-6; A.push(points(Md, a)); B.push(points(Md, b)); }
+      for (let i = 0; i < pts.length; i++) { const J = [[], [], []]; for (let k = 0; k < n; k++) for (let x = 0; x < 3; x++) J[x][k] = (A[k][i].x[x] - B[k][i].x[x]) / 2e-6;
+        for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) Mm[r][c] += pts[i].m * (J[0][r] * J[0][c] + J[1][r] * J[1][c] + J[2][r] * J[2][c]); }
+      if (!P.tail) { Mm[8][8] += 1e-4; Mm[9][9] += 1e-4; } return Mm; };
+    const Qof = qq => { const qdd = deriv(Md, qq, new Array(n).fill(0), 0, ex, false), Mq = massAt(qq); return Mq.map(r => r.reduce((s, v, j) => s + v * qdd[j], 0)); };
+    const K = Array.from({ length: n }, () => new Array(n).fill(0)), e = 1e-5;
+    for (let k = 0; k < n; k++) { const a = q.slice(), b = q.slice(); a[k] += e; b[k] -= e; const Qa = Qof(a), Qb = Qof(b); for (let r = 0; r < n; r++) K[r][k] = -(Qa[r] - Qb[r]) / (2 * e); }
+    for (let r = 0; r < n; r++) for (let c = r + 1; c < n; c++) { const s = (K[r][c] + K[c][r]) / 2; K[r][c] = s; K[c][r] = s; }
+    const M0 = massAt(q), Ks = K.slice(0, nn).map(r => r.slice(0, nn)), Ms = M0.slice(0, nn).map(r => r.slice(0, nn));
+    const Lc = Array.from({ length: nn }, () => new Array(nn).fill(0));
+    for (let i = 0; i < nn; i++) for (let j = 0; j <= i; j++) { let s = Ms[i][j]; for (let k = 0; k < j; k++) s -= Lc[i][k] * Lc[j][k]; Lc[i][j] = i === j ? Math.sqrt(s) : s / Lc[j][j]; }
+    const Li = Array.from({ length: nn }, () => new Array(nn).fill(0));
+    for (let i = 0; i < nn; i++) { Li[i][i] = 1 / Lc[i][i]; for (let j = 0; j < i; j++) { let s = 0; for (let k = j; k < i; k++) s -= Lc[i][k] * Li[k][j]; Li[i][j] = s / Lc[i][i]; } }
+    const MM = (X, Y) => X.map(r => Y[0].map((_, j) => r.reduce((s, v, k) => s + v * Y[k][j], 0))), T = X => X[0].map((_, j) => X.map(r => r[j]));
+    const Aq = MM(MM(Li, Ks), T(Li)), V = Array.from({ length: nn }, (_, i) => Array.from({ length: nn }, (_, j) => i === j ? 1 : 0));
+    for (let sw = 0; sw < 80; sw++) {
+      let off = 0; for (let i = 0; i < nn; i++) for (let j = i + 1; j < nn; j++) off += Aq[i][j] * Aq[i][j]; if (off < 1e-20) break;
+      for (let p = 0; p < nn; p++) for (let r = p + 1; r < nn; r++) { if (Math.abs(Aq[p][r]) < 1e-15) continue;
+        const th = 0.5 * Math.atan2(2 * Aq[p][r], Aq[r][r] - Aq[p][p]), c = Math.cos(th), s = Math.sin(th);
+        for (let k = 0; k < nn; k++) { const a = Aq[k][p], b = Aq[k][r]; Aq[k][p] = c * a - s * b; Aq[k][r] = s * a + c * b; }
+        for (let k = 0; k < nn; k++) { const a = Aq[p][k], b = Aq[r][k]; Aq[p][k] = c * a - s * b; Aq[r][k] = s * a + c * b; }
+        for (let k = 0; k < nn; k++) { const a = V[k][p], b = V[k][r]; V[k][p] = c * a - s * b; V[k][r] = s * a + c * b; } }
+    }
+    const names = ['platform surge x', 'platform sway y', 'platform heave z', 'platform roll', 'platform pitch', 'platform yaw', 'drone pitch (gimbal)', 'drone roll (gimbal)', 'tail fore-aft', 'tail side'];
+    const out = [], LT = T(Li);
+    for (let i = 0; i < nn; i++) {
+      const lam = Aq[i][i], v = V.map(r => r[i]), x = LT.map(r => r.reduce((s, val, k) => s + val * v[k], 0));
+      const en = x.map((xi, k) => xi * Ms[k].reduce((s, mk, j) => s + mk * x[j], 0));
+      let best = 0; for (let k = 1; k < nn; k++) if (Math.abs(en[k]) > Math.abs(en[best])) best = k;
+      out.push({ f: lam > 0 ? Math.sqrt(lam) / (2 * Math.PI) : -Math.sqrt(-lam) / (2 * Math.PI), dom: names[best], domIdx: best });
+    }
+    return out.sort((a, b) => a.f - b.f);
+  }
+
+  // tail tuned (Den Hartog) to the platform sway (side) and surge (fore-aft) modes
+  function autoTune(P) {
+    const md = modes(Object.assign({}, P, { tail: false }));
+    const pick = idx => { const m = md.find(x => x.domIdx === idx && x.f > 0); return m ? m.f : null; };
+    const fx = pick(0) || pick(4) || 2, fy = pick(1) || pick(3) || 2;
+    const mu = P.mT / (P.mD + P.mP + P.mT), r = 1 / (1 + mu), z = Math.sqrt(3 * mu / (8 * Math.pow(1 + mu, 3)));
+    const I = P.mT * P.Lt * P.Lt, gk = P.mT * G * P.Lt * Math.cos(P.delta0);
+    const wd = 2 * Math.PI * fx * r, we = 2 * Math.PI * fy * r;
+    P.kTd = Math.max(0.001, I * wd * wd - gk); P.kTe = Math.max(0.001, I * we * we - gk);
+    P.cTd = 2 * z * wd * I; P.cTe = 2 * z * we * I;
+    return { fx, fy, mu, zeta: z, ftd: wd / 2 / Math.PI, fte: we / 2 / Math.PI, tooLong: I * wd * wd - gk < 0.001, Lideal: G * Math.cos(P.delta0) / (wd * wd) };
+  }
+
+  function run(P, ex, T, dt, init) {
+    const S = create(P); if (init) init(S);
+    const st = { n: 0 }, keys = ['x', 'y', 'z', 'roll', 'pitch', 'yaw', 'proll', 'ppitch'];
+    keys.forEach(k => st[k] = 0);
+    for (let i = 0, N = Math.round(T / dt); i < N && !S.failed; i++) {
+      step(S, ex, dt);
+      if (S.t > T * 0.5) { const d = dev(S); keys.forEach(k => st[k] += d[k] * d[k]); st.n++; }
+    }
+    const rms = {}; keys.forEach(k => rms[k] = st.n ? Math.sqrt(st[k] / st.n) : NaN);
+    return { survived: !S.failed, reason: S.reason, peak: S.peak, rms, t: S.t };
+  }
+
+  return { defaults, build, create, step, legs, frames, dev, modes, autoTune, run, branch, rotM, mv, NAMES, G, D2R, tailDir };
+})();
+if (typeof module !== 'undefined') module.exports = PQ;
+
+
+const $ = id => document.getElementById(id);
+const D2R = Math.PI / 180;
+let P, S, ex, paused = false, slow = false, showLabels = true, scenario = 'vib', hist = [];
+let cam = { az: 0.6, el: 0.28, zoom: 1.0 };
+
+function readP() {
+  const p = PQ.defaults();
+  p.gimbalLocked = $('gLock').checked; p.d = +$('dd').value / 1000; p.cGim = +$('cg').value;
+  p.dampers = $('dOn').checked; p.cKnee = +$('ck').value; p.cAnkP = +$('ca').value; p.cAnkR = +$('cr').value; p.reverse = +$('rv').value;
+  const ks = +$('ks').value; p.kKnee *= ks; p.kAnkP *= ks; p.kAnkR *= ks; p.kGripP = +$('kg').value;
+  p.tail = $('tOn').checked; p.mT = +$('mt').value / 1000; p.Lt = +$('lt').value;
+  return p;
+}
+function readEx() { return { f: +$('f').value, ax: +$('ax').value / 1000, ay: +$('ay').value / 1000, az: +$('az').value / 1000, wind: +$('ws').value, gust: +$('wg').value, windDir: +$('wd').value }; }
+function scenarioEx() {
+  const e = readEx();
+  if (scenario === 'land') { e.ax = e.ay = e.az = 0; e.wind = e.gust = 0; }
+  if (scenario === 'vib') { e.wind = e.gust = 0; }
+  if (scenario === 'wind') { e.ax = e.ay = e.az = 0; }
+  return e;
+}
+function initVel(St) { if (scenario === 'land' || scenario === 'all') { St.qd[2] = -(+$('vd').value); St.qd[0] = +$('vf').value; } }
+function reset() {
+  P = readP(); const t = PQ.autoTune(P);
+  $('tuneInfo').innerHTML = P.tail ? `Auto-tuned (Den Hartog): fore-aft ${t.ftd.toFixed(2)} Hz · side ${t.fte.toFixed(2)} Hz · ζ ${t.zeta.toFixed(2)}` : '';
+  S = PQ.create(P); initVel(S); ex = scenarioEx(); hist = []; S.pk2 = {};
+  try { const md = PQ.modes(P); $('modes').innerHTML = md.map(m => `<span class="pill">${m.f.toFixed(2)} Hz</span> ${m.dom}`).join('<br>') + (md.some(m => m.f < 0) ? '<br><b style="color:#C0392B">⚠ negative-stiffness mode → unstable</b>' : ''); } catch (e) { $('modes').textContent = 'n/a'; }
+}
+
+// ---------- 3D ----------
+const cv = $('view'), g = cv.getContext('2d');
+function proj(p) {
+  const W = cv.width, H = cv.height, s = 1900 * cam.zoom, c = [0, 0, 0.12];
+  const x = p[0] - c[0], y = p[1] - c[1], z = p[2] - c[2], ca = Math.cos(cam.az), sa = Math.sin(cam.az), ce = Math.cos(cam.el), se = Math.sin(cam.el);
+  const X = ca * x - sa * y, Y = sa * x + ca * y, Yp = ce * Y - se * z, Zp = se * Y + ce * z;
+  return { x: W / 2 + X * s, y: H * 0.56 - Zp * s, d: Yp };
+}
+const SC = () => 1900 * cam.zoom;
+function line3(a, b, col, w) { const A = proj(a), B = proj(b); g.strokeStyle = col; g.lineWidth = w; g.beginPath(); g.moveTo(A.x, A.y); g.lineTo(B.x, B.y); g.stroke(); }
+function poly3(pts, fill, stroke, alpha) { const pr = pts.map(proj); g.globalAlpha = alpha == null ? 1 : alpha; g.fillStyle = fill; g.beginPath(); pr.forEach((p, i) => i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y)); g.closePath(); g.fill(); if (stroke) { g.strokeStyle = stroke; g.lineWidth = 1; g.stroke(); } g.globalAlpha = 1; }
+function ball(p, r, col) { const A = proj(p); g.fillStyle = col; g.beginPath(); g.arc(A.x, A.y, Math.max(1.5, r * SC()), 0, 2 * Math.PI); g.fill(); }
+function text3(p, s, col, dx, dy) { const A = proj(p); g.fillStyle = col || '#1B1F1D'; g.font = 'bold 12px Malgun Gothic, Arial'; g.fillText(s, A.x + (dx || 6), A.y + (dy || -6)); }
+const V = { add: (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]], sub: (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]], s: (a, k) => [a[0] * k, a[1] * k, a[2] * k],
+  cross: (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]], n: a => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; } };
+const lerp = (a, b, t) => a + (b - a) * t;
+function loadCol(r) { r = Math.max(0, Math.min(1, r)); if (r < 0.5) { const t = r / 0.5; return `rgb(${lerp(60, 227, t) | 0},${lerp(154, 161, t) | 0},${lerp(91, 59, t) | 0})`; } const t = (r - 0.5) / 0.5; return `rgb(${lerp(227, 192, t) | 0},${lerp(161, 57, t) | 0},${lerp(59, 43, t) | 0})`; }
+function frameOf(axis) { axis = V.n(axis); const ref = Math.abs(axis[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0]; const e1 = V.n(V.cross(axis, ref)); return [axis, e1, V.cross(axis, e1)]; }
+function coil(c, axis, col, len, rad, turns) {
+  const [a, e1, e2] = frameOf(axis), N = 50; g.strokeStyle = col; g.lineWidth = 2; g.beginPath();
+  for (let i = 0; i <= N; i++) { const t = i / N, th = t * turns * 2 * Math.PI; const p = V.add(V.add(c, V.s(a, (t - 0.5) * len)), V.add(V.s(e1, Math.cos(th) * rad), V.s(e2, Math.sin(th) * rad))); const A = proj(p); i ? g.lineTo(A.x, A.y) : g.moveTo(A.x, A.y); }
+  g.stroke();
+}
+function dashpot(base, axis, col, len, edge) {
+  const [a, e1] = frameOf(axis), w = 0.0045, a1 = V.add(base, V.s(a, len * 0.55)), a2 = V.add(base, V.s(a, len));
+  poly3([V.add(base, V.s(e1, w)), V.add(a1, V.s(e1, w)), V.add(a1, V.s(e1, -w)), V.add(base, V.s(e1, -w))], col, edge, 0.95);
+  line3(a1, a2, '#333', 2); line3(V.add(a1, V.s(e1, w * 0.8)), V.add(a1, V.s(e1, -w * 0.8)), '#111', 2);
+  return a2;
+}
+function circle3(c, n, r, col, w) { const [a, e1, e2] = frameOf(n), N = 48; g.strokeStyle = col; g.lineWidth = w; g.beginPath(); for (let i = 0; i <= N; i++) { const th = i / N * 2 * Math.PI; const A = proj(V.add(c, V.add(V.s(e1, r * Math.cos(th)), V.s(e2, r * Math.sin(th))))); i ? g.lineTo(A.x, A.y) : g.moveTo(A.x, A.y); } g.stroke(); }
+
+function draw() {
+  const W = cv.width, H = cv.height; g.clearRect(0, 0, W, H);
+  const X = +$('exag').value, M = S.M, q0 = M.q0, br = PQ.branch(ex, S.t);
+  let qv = S.q.map((v, i) => i === 8 || i === 9 ? v : q0[i] + (v - q0[i]) * X), bd = br.d.map(v => v * X);
+  let LL = PQ.legs(M, qv, bd); if (!LL[0].ok || !LL[1].ok) { qv = S.q.slice(); bd = br.d; LL = PQ.legs(M, qv, bd); }
+  const F = PQ.frames(M, qv), Rp = F.Rp, Rd = F.Rd, mvp = v => V.add(F.p, PQ.mv(Rp, v)), mvd = v => V.add(F.Dc, PQ.mv(Rd, v));
+  const mon = S.mon || { tauS: new Array(12).fill(0), tauD: new Array(12).fill(0), tG: [0, 0], tT: [0, 0], legF: [[0, 0, 0], [0, 0, 0]] };
+  // ground grid
+  for (let i = -6; i <= 6; i++) { line3([i * 0.04, -0.24, -0.06], [i * 0.04, 0.24, -0.06], '#E1E8E4', 1); line3([-0.24, i * 0.04, -0.06], [0.24, i * 0.04, -0.06], '#E1E8E4', 1); }
+  // branch
+  const b1 = proj([bd[0], -0.26 + bd[1], bd[2]]), b2 = proj([bd[0], 0.26 + bd[1], bd[2]]);
+  g.lineCap = 'round'; g.strokeStyle = '#7A5C3E'; g.lineWidth = 2 * M.P.branchR * SC(); g.beginPath(); g.moveTo(b1.x, b1.y); g.lineTo(b2.x, b2.y); g.stroke();
+  g.strokeStyle = '#8E6C4A'; g.lineWidth = 0.8 * M.P.branchR * SC(); g.beginPath(); g.moveTo(b1.x, b1.y - 3); g.lineTo(b2.x, b2.y - 3); g.stroke(); g.lineCap = 'butt';
+  // tail (behind)
+  if (M.P.tail) {
+    const piv = mvp(M.P.tailPivot), tip = V.add(F.p, PQ.mv(Rp, V.add(M.P.tailPivot, V.s(PQ.tailDir(qv[8], qv[9]), M.P.Lt))));
+    line3(piv, tip, '#6E7672', 3.5); coil(piv, PQ.mv(Rp, [0, 1, 0]), loadCol(Math.abs(mon.tT[0]) / 0.02), 0.018, 0.006, 5);
+    ball(tip, 0.009 * Math.cbrt(M.P.mT / 0.02), '#E3A13B'); if (showLabels) text3(tip, `tail ${(M.P.mT * 1000).toFixed(0)} g`, '#B87A1E', 10, 4);
+  }
+  // legs
+  const n = PQ.mv(Rp, [0, 1, 0]);
+  for (let s = 0; s < 2; s++) {
+    const l = LL[s], j = 6 * s, a = V.n(V.sub(l.A, l.K)), roll = V.n(V.cross(a, n));
+    line3(mvp([0, 0, 0]), l.H, '#3B4240', 4);
+    line3(l.H, l.K, '#111', 5); line3(l.K, l.A, '#111', 4.5); line3(l.A, l.F, '#111', 4);
+    const fc = proj(l.F); g.strokeStyle = '#111'; g.lineWidth = 3; g.beginPath(); g.arc(fc.x, fc.y + M.P.branchR * SC(), M.P.branchR * 1.5 * SC(), Math.PI * 1.05, Math.PI * 1.95); g.stroke();
+    coil(l.K, n, loadCol(Math.abs(mon.tauS[j]) / 0.15), 0.02, 0.006, 5);
+    coil(l.A, n, loadCol(Math.abs(mon.tauS[j + 1]) / 0.1), 0.018, 0.0055, 5);
+    coil(V.add(l.A, V.s(a, 0.012)), roll, loadCol(Math.abs(mon.tauS[j + 2]) / 0.08), 0.016, 0.0045, 4);
+    coil(V.add(l.F, [0, 0, 0.006]), [0, 1, 0], loadCol(Math.abs(mon.tauS[j + 3]) / 0.2), 0.016, 0.005, 4);
+    if (M.P.dampers) {
+      const sd = s === 0 ? 1 : -1;
+      const dk = dashpot(V.add(l.K, V.s(n, sd * 0.012)), V.s(n, sd), loadCol(Math.abs(mon.tauD[j]) / 0.05), 0.03, '#B5651D');
+      const da = dashpot(V.add(l.A, V.s(n, sd * 0.011)), V.s(n, sd), loadCol(Math.abs(mon.tauD[j + 1]) / 0.03), 0.028, '#B5651D');
+      const dr = dashpot(V.add(l.A, V.s(a, -0.01)), V.s(roll, sd), loadCol(Math.abs(mon.tauD[j + 2]) / 0.02), 0.026, '#2C6FB7');
+      if (showLabels) { text3(dk, `knee 1-way ${Math.abs(mon.tauD[j]).toFixed(3)}`, '#8A4B12', 4, 2); text3(da, `ankle 1-way ${Math.abs(mon.tauD[j + 1]).toFixed(3)}`, '#8A4B12', 4, 14); text3(dr, `roll 2-way ${Math.abs(mon.tauD[j + 2]).toFixed(3)}`, '#1F4E85', -120, 18); }
+    }
+    for (const pt of [l.H, l.K, l.A]) { ball(pt, 0.0032, '#fff'); ball(pt, 0.0018, '#111'); }
+    const Fv = mon.legF[s]; line3(l.F, V.add(l.F, V.s(Fv, -0.004)), '#2C6FB7', 3);
+    if (showLabels) text3(V.add(l.F, V.s(Fv, -0.004)), `${Math.hypot(...Fv).toFixed(1)} N`, '#2C6FB7', 6, 0);
+  }
+  // platform (pelvis) + post to gimbal pivot
+  line3(mvp([0, M.P.hipY, 0]), mvp([0, -M.P.hipY, 0]), '#3B4240', 7);
+  line3(mvp([0, 0, 0]), F.piv, '#3B4240', 5);
+  // gimbal rings
+  circle3(F.piv, PQ.mv(Rp, [0, 1, 0]), 0.03, M.P.gimbalLocked ? '#999' : '#2C6FB7', 3);
+  circle3(F.piv, PQ.mv(Rd, [1, 0, 0]), 0.024, M.P.gimbalLocked ? '#999' : '#4F7A5A', 3);
+  if (!M.P.gimbalLocked) { line3(V.add(F.piv, V.s(PQ.mv(Rp, [0, 1, 0]), -0.04)), V.add(F.piv, V.s(PQ.mv(Rp, [0, 1, 0]), 0.04)), '#2C6FB7', 1.5); line3(V.add(F.piv, V.s(PQ.mv(Rd, [1, 0, 0]), -0.04)), V.add(F.piv, V.s(PQ.mv(Rd, [1, 0, 0]), 0.04)), '#4F7A5A', 1.5); }
+  if (showLabels) text3(V.add(F.piv, [0, 0.035, -0.005]), M.P.gimbalLocked ? 'gimbal LOCKED' : `gimbal (d = ${(M.P.d * 1000).toFixed(0)} mm)`, '#2C6FB7', 6, 0);
+  // drone (quad X)
+  const faces = [];
+  const bx = 0.05, by = 0.03, bz = 0.02;
+  const box = [[bx, by, bz], [bx, -by, bz], [-bx, -by, bz], [-bx, by, bz], [bx, by, -bz * 0.6], [bx, -by, -bz * 0.6], [-bx, -by, -bz * 0.6], [-bx, by, -bz * 0.6]].map(mvd);
+  const fidx = [[0, 1, 2, 3, '#2A2E2C'], [4, 5, 6, 7, '#1E2220'], [0, 1, 5, 4, '#3A403D'], [2, 3, 7, 6, '#3A403D'], [1, 2, 6, 5, '#333936'], [0, 3, 7, 4, '#333936']];
+  for (const f of fidx) { const pts = f.slice(0, 4).map(i => box[i]); faces.push({ d: pts.reduce((s, p) => s + proj(p).d, 0) / 4, draw: () => poly3(pts, f[4], '#555', 1) }); }
+  faces.sort((a, b) => b.d - a.d).forEach(f => f.draw());
+  for (const [sx, sy] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+    const m = mvd([0.105 * sx, 0.13 * sy, 0.01]); line3(mvd([0.03 * sx, 0.02 * sy, 0.005]), m, '#2A2E2C', 5);
+    line3(m, V.add(m, PQ.mv(Rd, [0, 0, 0.018])), '#111', 7);
+    circle3(V.add(m, PQ.mv(Rd, [0, 0, 0.02])), PQ.mv(Rd, [0, 0, 1]), 0.065, 'rgba(90,95,93,.45)', 2);
+  }
+  ball(mvd([0.055, 0, -0.005]), 0.008, '#555'); // camera
+  ball(F.Dc, 0.004, '#E3A13B');
+  // wind arrow
+  if (ex.wind + ex.gust > 0) { const d = ex.windDir * D2R; const a0 = [0.22 * Math.cos(d), 0.22 * Math.sin(d), 0.24], a1 = [0.14 * Math.cos(d), 0.14 * Math.sin(d), 0.24]; line3(a0, a1, '#2C6FB7', 4); ball(a1, 0.004, '#2C6FB7'); text3(a0, `wind ${ex.wind.toFixed(1)}±${ex.gust.toFixed(1)} m/s`, '#2C6FB7', 4, -8); }
+  g.fillStyle = '#1E3A2F'; g.font = 'bold 15px Malgun Gothic, Arial';
+  g.fillText(`sim t = ${S.t.toFixed(2)} s   scenario: ${({ land: 'landing', vib: 'branch vibration', wind: 'wind', all: 'all combined' })[scenario]}   display ×${X}`, 14, 24);
+  if (S.failed) { g.fillStyle = 'rgba(192,57,43,.10)'; g.fillRect(0, 0, W, H); g.fillStyle = '#C0392B'; g.font = 'bold 24px Malgun Gothic, Arial'; g.fillText(`✕ ${S.reason} @ ${S.failT.toFixed(2)} s`, 14, H - 20); }
+}
+
+// ---------- readouts ----------
+function updateTables() {
+  const d = PQ.dev(S), win = hist.filter(h => h.t > S.t - 3);
+  const units = { x: 'mm', y: 'mm', z: 'mm', roll: '°', pitch: '°', yaw: '°', proll: '°', ppitch: '°' };
+  const rms = k => win.length ? Math.sqrt(win.reduce((s, h) => s + h[k] * h[k], 0) / win.length) : 0;
+  for (const k of Object.keys(units)) { $('n_' + k).textContent = d[k].toFixed(2) + ' ' + units[k]; $('p_' + k).textContent = S.peak[k].toFixed(2) + ' ' + units[k]; $('r_' + k).textContent = rms(k).toFixed(2) + ' ' + units[k]; }
+  const pr = Math.hypot(rms('proll'), rms('ppitch')), dr = Math.hypot(rms('roll'), rms('pitch'));
+  $('isoTxt').textContent = pr > 1e-3 ? (dr / pr).toFixed(2) : '–';
+  const m = S.mon; if (!m) return;
+  const row = (name, v, key, sc) => { S.pk2[key] = Math.max(S.pk2[key] || 0, Math.abs(v)); const r = Math.min(1, Math.abs(v) / sc);
+    return `<tr><td>${name}</td><td>${v.toFixed(3)}</td><td>${S.pk2[key].toFixed(3)}</td><td><div class="bar"><div style="width:${r * 100}%;background:${loadCol(r)}"></div></div></td></tr>`; };
+  let h = '<tr><th>element</th><th>now</th><th>peak</th><th>load</th></tr>';
+  for (let s = 0; s < 2; s++) {
+    const j = 6 * s, sd = s ? 'R' : 'L';
+    h += `<tr><td colspan="4" style="padding-top:7px;color:#1E3A2F;font-weight:700">${s ? 'Right leg 오른다리' : 'Left leg 왼다리'}</td></tr>`;
+    h += row('Knee spring 무릎 스프링', m.tauS[j], 'ks' + sd, 0.15) + row('Knee damper (1-way) 무릎 댐퍼', m.tauD[j], 'kd' + sd, 0.05);
+    h += row('Ankle-pitch spring 발목 피치', m.tauS[j + 1], 'as' + sd, 0.1) + row('Ankle-pitch damper (1-way)', m.tauD[j + 1], 'ad' + sd, 0.03);
+    h += row('Ankle-roll spring 발목 롤', m.tauS[j + 2], 'rs' + sd, 0.08) + row('Ankle-roll damper (2-way)', m.tauD[j + 2], 'rd' + sd, 0.02);
+    h += row('Claw torque 발톱 토크', m.tauS[j + 3], 'cl' + sd, 0.2) + row('Leg force |F| (N) 다리 힘', Math.hypot(...m.legF[s]), 'lf' + sd, 6);
+  }
+  h += `<tr><td colspan="4" style="padding-top:7px;color:#1E3A2F;font-weight:700">Gimbal & tail 짐벌·꼬리</td></tr>`;
+  h += row('Gimbal pitch torque', m.tG[0], 'g0', 0.01) + row('Gimbal roll torque', m.tG[1], 'g1', 0.01);
+  if (S.M.P.tail) h += row('Tail fore-aft spring', m.tT[0], 't0', 0.02) + row('Tail side spring', m.tT[1], 't1', 0.02);
+  h += row('Claw load 발톱 부하 (×100%)', S.gripUse || 0, 'grip', 1);
+  $('forces').innerHTML = h;
+  const st = $('status'); if (S.failed) { st.className = 'status bad'; st.textContent = 'FELL · ' + S.reason; } else { st.className = 'status ok'; st.textContent = 'PERCHED · 버티는 중'; }
+}
+function chart(id, keys, cols, unit) {
+  const c = $(id), x = c.getContext('2d'), W = c.width, H = c.height, pad = 38; x.clearRect(0, 0, W, H);
+  const t0 = Math.max(0, S.t - 8), win = hist.filter(h => h.t >= t0);
+  let m = 0.2; for (const h of win) for (const k of keys) m = Math.max(m, Math.abs(h[k])); m = Math.ceil(m * 1.15 * 10) / 10;
+  const X = t => pad + (t - t0) / 8 * (W - pad - 8), Y = v => H / 2 - v / m * (H / 2 - 12);
+  x.strokeStyle = '#E1E8E4'; x.lineWidth = 1; x.fillStyle = '#5F6B66'; x.font = '11px Arial';
+  for (const v of [-m, 0, m]) { x.beginPath(); x.moveTo(pad, Y(v)); x.lineTo(W - 8, Y(v)); x.stroke(); x.fillText(v.toFixed(1), 2, Y(v) + 4); }
+  x.fillText(unit, W - 30, 12);
+  keys.forEach((k, i) => { x.strokeStyle = cols[i]; x.lineWidth = 1.8; x.beginPath(); win.forEach((h, j) => j ? x.lineTo(X(h.t), Y(h[k])) : x.moveTo(X(h.t), Y(h[k]))); x.stroke(); });
+}
+
+// ---------- comparison ----------
+function runCompare() {
+  const e = scenarioEx(), T = scenario === 'land' ? 1.5 : 4;
+  const cfgs = [['Full design 전체 설계', p => p], ['Gimbal locked 짐벌 고정', p => (p.gimbalLocked = true, p)], ['No dampers 댐퍼 없음', p => (p.dampers = false, p)], ['No tail 꼬리 없음', p => (p.tail = false, p)]];
+  const rows = []; let i = 0; $('runCmp').disabled = true;
+  const render = () => {
+    let h = '<tr><th>design</th><th>result</th><th>x</th><th>y</th><th>z (mm)</th><th>roll</th><th>pitch</th><th>yaw (°)</th><th>RMS roll / pitch</th><th>platform pitch</th><th>claw</th></tr>';
+    for (const [nm, r] of rows) h += `<tr><td>${nm}</td><td>${r.survived ? '<span class="status ok">OK</span>' : '<span class="status bad">FELL</span>'}</td>` +
+      ['x', 'y', 'z', 'roll', 'pitch', 'yaw'].map(k => `<td>${r.peak[k].toFixed(1)}</td>`).join('') +
+      `<td>${isFinite(r.rms.roll) ? r.rms.roll.toFixed(2) + ' / ' + r.rms.pitch.toFixed(2) : '–'}</td><td>${r.peak.ppitch.toFixed(1)}</td><td>${(r.peak.grip * 100).toFixed(0)}%</td></tr>`;
+    $('cmp').innerHTML = h;
+  };
+  const next = () => {
+    if (i >= cfgs.length) { $('runCmp').disabled = false; $('cmpInfo').textContent = `drone peak values over ${T} s (sim) · scenario: ${scenario}`; return; }
+    const [nm, mod] = cfgs[i]; $('cmpInfo').textContent = `running ${i + 1}/4: ${nm} … (this takes a few seconds each)`;
+    setTimeout(() => { const p = mod(readP()); PQ.autoTune(p); rows.push([nm, PQ.run(p, e, T, 0.0005, St => initVel(St))]); i++; render(); next(); }, 30);
+  };
+  next();
+}
+
+// ---------- wiring ----------
+const vals = [['vd', 'v_vd', 2], ['vf', 'v_vf', 2], ['f', 'v_f', 1], ['ax', 'v_ax', 1], ['ay', 'v_ay', 1], ['az', 'v_az', 1], ['ws', 'v_ws', 1], ['wg', 'v_wg', 1], ['wd', 'v_wd', 0],
+  ['dd', 'v_dd', 0], ['cg', 'v_cg', 3], ['ck', 'v_ck', 3], ['ca', 'v_ca', 3], ['cr', 'v_cr', 3], ['rv', 'v_rv', 2], ['ks', 'v_ks', 2], ['kg', 'v_kg', 1], ['mt', 'v_mt', 0], ['lt', 'v_lt', 2]];
+function labels() { for (const [i, o, dg] of vals) $(o).textContent = (+$(i).value).toFixed(dg); $('vExag').textContent = $('exag').value; }
+for (const [i] of vals) $(i).addEventListener('input', () => { labels(); if (['f', 'ax', 'ay', 'az', 'ws', 'wg', 'wd'].includes(i)) ex = scenarioEx(); });
+for (const id of ['dd', 'cg', 'ck', 'ca', 'cr', 'rv', 'ks', 'kg', 'mt', 'lt']) $(id).addEventListener('change', reset);
+for (const id of ['gLock', 'dOn', 'tOn']) $(id).addEventListener('change', reset);
+$('exag').addEventListener('input', labels);
+$('reset').onclick = reset;
+$('pause').onclick = () => { paused = !paused; $('pause').textContent = paused ? '▶ Resume' : '❚❚ Pause'; };
+$('slow').onclick = () => { slow = !slow; $('slow').classList.toggle('sel', slow); };
+$('lbl').onclick = () => { showLabels = !showLabels; };
+$('runCmp').onclick = runCompare;
+const scen = { land: 'sc_land', vib: 'sc_vib', wind: 'sc_wind', all: 'sc_all' };
+function setScenario(s) { scenario = s; for (const k in scen) $(scen[k]).classList.toggle('sel', k === s); if ((s === 'wind' || s === 'all') && +$('ws').value === 0) { $('ws').value = 6; $('wg').value = 2; } labels(); reset(); }
+for (const k in scen) $(scen[k]).onclick = () => setScenario(k);
+let drag = null;
+cv.addEventListener('mousedown', e => { drag = { x: e.clientX, y: e.clientY, az: cam.az, el: cam.el }; cv.style.cursor = 'grabbing'; });
+window.addEventListener('mouseup', () => { drag = null; cv.style.cursor = 'grab'; });
+window.addEventListener('mousemove', e => { if (!drag) return; cam.az = drag.az + (e.clientX - drag.x) * 0.008; cam.el = Math.max(-0.2, Math.min(1.4, drag.el + (e.clientY - drag.y) * 0.006)); });
+cv.addEventListener('wheel', e => { e.preventDefault(); cam.zoom = Math.max(0.4, Math.min(3, cam.zoom * (e.deltaY < 0 ? 1.1 : 0.9))); }, { passive: false });
+
+let last = performance.now(), acc = 0;
+function loop(now) {
+  const frame = Math.min(0.05, (now - last) / 1000); last = now;
+  if (!paused && !S.failed) {
+    const dt = 0.0005; acc += frame * (slow ? 0.2 : 1);
+    let n = Math.floor(acc / dt); acc -= n * dt; n = Math.min(n, 34); acc = Math.min(acc, 0.01);
+    for (let i = 0; i < n; i++) PQ.step(S, ex, dt);
+    hist.push(Object.assign({ t: S.t }, PQ.dev(S))); if (hist.length > 4000) hist.shift();
+  }
+  draw(); updateTables();
+  chart('chXYZ', ['x', 'y', 'z'], ['#C0392B', '#2E9E5B', '#2C6FB7'], 'mm');
+  chart('chRPY', ['roll', 'pitch', 'ppitch'], ['#C0392B', '#2E9E5B', '#9AA5A0'], 'deg');
+  requestAnimationFrame(loop);
+}
+labels(); setScenario('vib'); requestAnimationFrame(loop);
+if (location.hash === '#cmp') setTimeout(runCompare, 400);
+</script>
+</body>
+</html>

@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CN220884859U 구조 정리</title>
+<style>
+:root{--fg:#1d1d1f;--muted:#666;--bg:#fff;--line:#bbb;--part:#333;--wire:#d9480f;--cord:#1971c2;--branch:#8a6a3b;--soft:#f3f3f3}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--fg:#e8e8e8;--muted:#aaa;--bg:#1b1b1d;--line:#555;--part:#ddd;--wire:#ff8a4c;--cord:#5aa9ff;--branch:#c49a5a;--soft:#262628}}
+:root[data-theme="dark"]{--fg:#e8e8e8;--muted:#aaa;--bg:#1b1b1d;--line:#555;--part:#ddd;--wire:#ff8a4c;--cord:#5aa9ff;--branch:#c49a5a;--soft:#262628}
+body{background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;line-height:1.6;margin:0;padding:16px}
+main{max-width:860px;margin:0 auto}
+h1{font-size:1.4rem;margin:.2em 0}
+h2{font-size:1.1rem;margin-top:2em;border-bottom:1px solid var(--line);padding-bottom:.2em}
+.muted{color:var(--muted);font-size:.9rem}
+table{border-collapse:collapse;width:100%;font-size:.92rem}
+th,td{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+th{background:var(--soft)}
+svg{width:100%;height:auto;display:block}
+svg text{fill:var(--fg);font-size:12px}
+.wrap{overflow-x:auto}
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+.steps figure{margin:0;border:1px solid var(--line);padding:6px}
+.steps figcaption{font-size:.88rem}
+</style>
+</head>
+<body>
+<main>
+<h1>CN220884859U — 旋翼无人机用仿生栖息机构</h1>
+<p>회전익 드론용 생체모방 퍼칭 기구 · 동북임업대학 · 출원 2023-09-26 · 공고 2024-05-03 · 연차료 미납으로 소멸 (2025-09-26, Google Patents 표기)</p>
+<p class="muted">※ 아래 그림은 명세서 문장을 바탕으로 그린 <b>개념도</b>이며 원 도면이 아니다. 치수와 비율은 임의다. 괄호 안 숫자는 명세서의 부호. 출처: <a href="https://patents.google.com/patent/CN220884859U/zh">Google Patents CN220884859U</a></p>
+
+<h2>1. 배경과 목적 (명세서)</h2>
+<ul>
+<li><b>문제:</b> 임업에서 회전익 드론이 고정점 감시를 하려면 나무 위에서 호버링해야 한다. 호버링은 배터리를 빨리 소모하고, 숲이 빽빽해 착륙할 곳이 없다. 그래서 체공 시간과 감시 안정성이 떨어진다.</li>
+<li><b>해결:</b> 드론이 가지에 앉은 뒤 로터 구동을 끊는다 → 더 오래, 더 안정적으로 고정점을 감시한다.</li>
+</ul>
+
+<h2>2. 구조 (측면 개념도)</h2>
+<div class="wrap">
+<svg viewBox="0 0 660 440" role="img" aria-label="CN220884859U 측면 개념도">
+  <!-- drone -->
+  <line x1="170" y1="44" x2="470" y2="44" stroke="var(--part)" stroke-width="3"/>
+  <ellipse cx="165" cy="36" rx="45" ry="6" fill="none" stroke="var(--part)"/>
+  <ellipse cx="475" cy="36" rx="45" ry="6" fill="none" stroke="var(--part)"/>
+  <rect x="250" y="34" width="140" height="26" rx="5" fill="var(--soft)" stroke="var(--part)"/>
+  <text x="320" y="51" text-anchor="middle">드론 본체</text>
+  <!-- UAV frame 1 -->
+  <rect x="265" y="62" width="110" height="10" fill="var(--soft)" stroke="var(--part)"/>
+  <!-- motor 502 -->
+  <rect x="352" y="72" width="26" height="20" fill="var(--soft)" stroke="var(--wire)" stroke-width="2"/>
+  <text x="365" y="86" text-anchor="middle" style="font-size:10px">M</text>
+  <!-- thighs 601 603 -->
+  <line x1="280" y1="72" x2="300" y2="160" stroke="var(--part)" stroke-width="4"/>
+  <line x1="345" y1="72" x2="370" y2="160" stroke="var(--part)" stroke-width="4"/>
+  <!-- loop plate 605 + rods -->
+  <rect x="290" y="153" width="92" height="14" fill="none" stroke="var(--part)" stroke-dasharray="3 2"/>
+  <circle cx="300" cy="160" r="3.5" fill="var(--part)"/>
+  <circle cx="370" cy="160" r="3.5" fill="var(--part)"/>
+  <circle cx="336" cy="160" r="3.5" fill="var(--bg)" stroke="var(--part)" stroke-width="2"/>
+  <!-- half gears 701 702 -->
+  <path d="M354 160 A16 16 0 0 1 386 160" fill="none" stroke="var(--part)" stroke-dasharray="2 2"/>
+  <path d="M320 160 A16 16 0 0 0 352 160" fill="none" stroke="var(--part)" stroke-dasharray="2 2"/>
+  <!-- shins 602 604 -->
+  <line x1="336" y1="160" x2="300" y2="250" stroke="var(--part)" stroke-width="4"/>
+  <line x1="336" y1="160" x2="352" y2="250" stroke="var(--part)" stroke-width="4"/>
+  <!-- claw-arm frame 2 -->
+  <rect x="285" y="250" width="80" height="10" fill="var(--soft)" stroke="var(--part)"/>
+  <!-- mounting tube 301 -->
+  <rect x="313" y="260" width="24" height="36" fill="var(--soft)" stroke="var(--part)"/>
+  <!-- steel wire 501 + rollers 802 -->
+  <path d="M365 92 L358 115 L352 158 L346 205 L330 262 L325 292" fill="none" stroke="var(--wire)" stroke-width="2"/>
+  <circle cx="364" cy="115" r="5" fill="none" stroke="var(--wire)"/>
+  <circle cx="353" cy="205" r="5" fill="none" stroke="var(--wire)"/>
+  <!-- branch -->
+  <circle cx="325" cy="345" r="26" fill="none" stroke="var(--branch)" stroke-width="3"/>
+  <text x="325" y="349" text-anchor="middle" style="fill:var(--branch)">가지</text>
+  <!-- claws 302 -->
+  <path d="M316 296 C276 305 276 375 311 382" fill="none" stroke="var(--part)" stroke-width="4"/>
+  <path d="M334 296 C374 305 374 375 339 382" fill="none" stroke="var(--part)" stroke-width="4"/>
+  <!-- cords 402 -->
+  <path d="M321 296 C291 310 290 368 312 377" fill="none" stroke="var(--cord)" stroke-width="1.5"/>
+  <path d="M329 296 C359 310 360 368 338 377" fill="none" stroke="var(--cord)" stroke-width="1.5"/>
+  <!-- tip blocks 403 -->
+  <rect x="305" y="377" width="9" height="9" fill="var(--cord)"/>
+  <rect x="336" y="377" width="9" height="9" fill="var(--cord)"/>
+
+  <!-- left labels -->
+  <g stroke="var(--line)">
+    <line x1="150" y1="67" x2="265" y2="67"/>
+    <line x1="150" y1="115" x2="288" y2="115"/>
+    <line x1="150" y1="160" x2="290" y2="160"/>
+    <line x1="150" y1="205" x2="318" y2="205"/>
+    <line x1="150" y1="255" x2="285" y2="255"/>
+    <line x1="150" y1="278" x2="313" y2="278"/>
+    <line x1="150" y1="330" x2="282" y2="330"/>
+    <line x1="150" y1="381" x2="305" y2="381"/>
+  </g>
+  <text x="10" y="71">무인기 연결 프레임 (1)</text>
+  <text x="10" y="119">허벅지 앞·뒤 지지대 (601·603)</text>
+  <text x="10" y="164">회형판 = 무릎 (605)</text>
+  <text x="10" y="209">정강이 앞·뒤 지지대 (602·604)</text>
+  <text x="10" y="259">발톱팔 연결 프레임 (2)</text>
+  <text x="10" y="282">장착 통 (301)</text>
+  <text x="10" y="334">유연 생체모방 새 발톱 ×4 (302)</text>
+  <text x="10" y="385">발톱 끝 연결 블록 (403)</text>
+
+  <!-- right labels -->
+  <g stroke="var(--line)">
+    <line x1="378" y1="82" x2="480" y2="82"/>
+    <line x1="369" y1="115" x2="480" y2="115"/>
+    <line x1="386" y1="150" x2="480" y2="140"/>
+    <line x1="370" y1="160" x2="480" y2="172"/>
+    <line x1="358" y1="205" x2="480" y2="205"/>
+    <line x1="360" y1="330" x2="480" y2="300"/>
+    <line x1="352" y1="345" x2="480" y2="345"/>
+  </g>
+  <text x="485" y="86">견인 모터 (502)</text>
+  <text x="485" y="119" style="fill:var(--wire)">강선 (501)</text>
+  <text x="485" y="144">반원 기어 한 쌍 (701·702)</text>
+  <text x="485" y="158" class="muted" style="font-size:10.5px">같은 잇수로 맞물려 접힐 때</text>
+  <text x="485" y="170" style="font-size:10.5px">프레임 1과 회형판을 평행 유지</text>
+  <text x="485" y="184" style="font-size:10.5px">● 1차 장착봉 606 ○ 2차 장착봉 607</text>
+  <text x="485" y="209" style="fill:var(--wire)">지지 롤러 (802): 강선 장력 유지</text>
+  <text x="485" y="304" style="fill:var(--cord)">견인줄 (402): 통 안 → 발톱</text>
+  <text x="485" y="318" style="fill:var(--cord);font-size:10.5px">안쪽 → 바깥쪽 → 끝 블록</text>
+  <text x="485" y="349" style="fill:var(--branch)">가지·줄기</text>
+</svg>
+</div>
+<p class="muted">힘의 경로: 견인 모터(502) → 강선(501, 롤러 802가 장력 유지) → 통 안에서 견인줄(402)과 연결 → 발톱 끝 블록(403)을 당겨 네 발톱 끝이 모인다.</p>
+
+<h2>3. 퍼칭 순서 (명세서)</h2>
+<div class="steps">
+  <figure>
+    <svg viewBox="0 0 160 170">
+      <line x1="30" y1="22" x2="130" y2="22" stroke="var(--part)" stroke-width="3"/>
+      <ellipse cx="30" cy="16" rx="18" ry="3" fill="none" stroke="var(--part)"/><ellipse cx="130" cy="16" rx="18" ry="3" fill="none" stroke="var(--part)"/>
+      <polyline points="80,24 86,55 80,86" fill="none" stroke="var(--part)" stroke-width="3"/>
+      <path d="M77 86 C55 92 58 112 66 118" fill="none" stroke="var(--part)" stroke-width="3"/>
+      <path d="M83 86 C105 92 102 112 94 118" fill="none" stroke="var(--part)" stroke-width="3"/>
+      <circle cx="80" cy="148" r="14" fill="none" stroke="var(--branch)" stroke-width="2.5"/>
+      <path d="M135 60 L135 100" stroke="var(--muted)" stroke-width="2" marker-end="url(#ar)"/>
+      <defs><marker id="ar" markerWidth="8" markerHeight="8" refX="4" refY="6" orient="auto"><path d="M0 0 L8 0 L4 7 z" fill="var(--muted)"/></marker></defs>
+    </svg>
+    <figcaption><b>① 접근</b> — 드론이 내려가 네 발톱이 가지·줄기에 닿는다.</figcaption>
+  </figure>
+  <figure>
+    <svg viewBox="0 0 160 170">
+      <line x1="30" y1="52" x2="130" y2="52" stroke="var(--part)" stroke-width="3"/>
+      <ellipse cx="30" cy="46" rx="18" ry="3" fill="none" stroke="var(--part)"/><ellipse cx="130" cy="46" rx="18" ry="3" fill="none" stroke="var(--part)"/>
+      <polyline points="80,54 100,84 80,116" fill="none" stroke="var(--part)" stroke-width="3"/>
+      <path d="M77 116 C58 120 60 140 68 146" fill="none" stroke="var(--part)" stroke-width="3"/>
+      <path d="M83 116 C102 120 100 140 92 146" fill="none" stroke="var(--part)" stroke-width="3"/>
+      <circle cx="80" cy="140" r="14" fill="none" stroke="var(--branch)" stroke-width="2.5"/>
+    </svg>
+    <figcaption><b>② 다리 접힘</b> — 계속 내려가면 가지가 발톱을 막아 허벅지·정강이 지지대가 굽고, 프레임 1이 발톱 쪽으로 다가온다.</figcaption>
+  </figure>
+  <figure>
+    <svg viewBox="0 0 160 170">
+      <line x1="30" y1="62" x2="130" y2="62" stroke="var(--part)" stroke-width="3"/>
+      <ellipse cx="30" cy="56" rx="18" ry="3" fill="none" stroke="var(--part)"/><ellipse cx="130" cy="56" rx="18" ry="3" fill="none" stroke="var(--part)"/>
+      <polyline points="80,64 106,92 80,120" fill="none" stroke="var(--part)" stroke-width="3"/>
+      <polyline points="88,66 98,92 82,122" fill="none" stroke="var(--wire)" stroke-width="2"/>
+      <path d="M77 120 C60 124 60 150 72 155" fill="none" stroke="var(--part)" stroke-width="3"/>
+      <path d="M83 120 C100 124 100 150 88 155" fill="none" stroke="var(--part)" stroke-width="3"/>
+      <circle cx="80" cy="140" r="14" fill="none" stroke="var(--branch)" stroke-width="2.5"/>
+    </svg>
+    <figcaption><b>③ 1차 파지</b> — 다리가 굽으면서 롤러가 강선을 팽팽하게 유지하고, 강선이 견인줄을 당겨 발톱 끝이 안쪽으로 모인다. <span class="muted">(접힘이 파지를 만드는 수동 단계)</span></figcaption>
+  </figure>
+  <figure>
+    <svg viewBox="0 0 160 170">
+      <line x1="30" y1="62" x2="130" y2="62" stroke="var(--muted)" stroke-width="3"/>
+      <ellipse cx="30" cy="56" rx="18" ry="3" fill="none" stroke="var(--muted)" stroke-dasharray="3 3"/><ellipse cx="130" cy="56" rx="18" ry="3" fill="none" stroke="var(--muted)" stroke-dasharray="3 3"/>
+      <text x="80" y="40" text-anchor="middle" style="font-size:11px;fill:var(--muted)">로터 OFF</text>
+      <rect x="92" y="66" width="16" height="12" fill="none" stroke="var(--wire)" stroke-width="2"/><text x="100" y="76" text-anchor="middle" style="font-size:9px">M</text>
+      <polyline points="80,64 106,92 80,120" fill="none" stroke="var(--part)" stroke-width="3"/>
+      <polyline points="98,78 98,92 82,122" fill="none" stroke="var(--wire)" stroke-width="2.5"/>
+      <path d="M77 120 C58 126 60 156 78 158" fill="none" stroke="var(--part)" stroke-width="3"/>
+      <path d="M83 120 C102 126 100 156 82 158" fill="none" stroke="var(--part)" stroke-width="3"/>
+      <circle cx="80" cy="140" r="14" fill="none" stroke="var(--branch)" stroke-width="2.5"/>
+    </svg>
+    <figcaption><b>④ 모터 조임 → 로터 정지</b> — 1차 파지 후 견인 모터가 강선을 더 당겨 발톱이 가지를 단단히 누른다. 이후 로터 구동을 끊고 고정점 감시. <span class="muted">(능동 단계)</span></figcaption>
+  </figure>
+</div>
+<p class="muted">이륙·해제 절차는 명세서에 기재되어 있지 않다.</p>
+
+<h2>4. 청구항 구성 (6항)</h2>
+<table>
+<tr><th>청구항</th><th>내용</th></tr>
+<tr><td>1</td><td>무인기 연결 프레임(1) + 발톱팔 연결 프레임(2) + 연결 조립체 + 파지·퍼칭 조립체(장착 통 301, 유연 새 발톱 4개 302) + 견인 조립체 + 당김 조립체</td></tr>
+<tr><td>2</td><td>견인줄(402)·장착 홈(401)·연결 블록(403) 배치</td></tr>
+<tr><td>3</td><td>강선(501)과 견인 모터(502)</td></tr>
+<tr><td>4</td><td>다리 링크: 허벅지·정강이 앞뒤 지지대(601–604), 회형판(605), 장착봉(606·607)</td></tr>
+<tr><td>5</td><td>반원 기어 한 쌍(701·702)</td></tr>
+<tr><td>6</td><td>지지대(801)·지지 롤러(802)</td></tr>
+</table>
+
+<h2>5. 우리 설계(00_summary.md)와 비교</h2>
+<table>
+<tr><th>항목</th><th>CN220884859U</th><th>우리 (00_summary.md 기준)</th></tr>
+<tr><td>목적</td><td>호버링 대신 가지에 앉아 로터를 끄고 장시간 고정점 감시</td><td>같음 (에너지 절감, 저소음 관측)</td></tr>
+<tr><td>다리</td><td>허벅지·정강이 접이 링크. 반원 기어로 접힐 때 프레임 평행 유지. 스프링·댐퍼 언급 없음</td><td>무릎 1자유도(피치) + 비틀림 스프링 + 일방향 댐퍼, 발목 U-조인트, 고관절 2축 짐벌</td></tr>
+<tr><td>파지</td><td>접힘 → 강선 장력 → 1차 파지(수동) 후 <b>모터로 조임(능동)</b></td><td>수동 발톱 (방식 미정, 🔲)</td></tr>
+<tr><td>균형·외란</td><td><b>언급 없음</b> (바람·가지 진동에 대한 기구 없음)</td><td>수동 짐벌 + 진자 꼬리 + 댐퍼로 외란 대응 (핵심 목표)</td></tr>
+<tr><td>착지 충격</td><td>언급 없음</td><td>무릎·발목 일방향 댐퍼로 흡수</td></tr>
+<tr><td>이륙·해제</td><td>기재 없음</td><td>미정 (팀 논의 필요)</td></tr>
+<tr><td>권리 상태</td><td colspan="2">연차료 미납으로 소멸 → 권리는 없지만 <b>선행기술로는 유효</b> (신규성·진보성 판단 대상)</td></tr>
+</table>
+<p class="muted">작성: 2026-10-12 · 조사 보조 Claude (생성형 AI) — 명세서 번역 요약을 바탕으로 작성, 원문 대조 필요.</p>
+</main>
+</body>
+</html>
