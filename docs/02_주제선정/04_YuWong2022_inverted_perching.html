@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Yu & Wong 2022 거꾸로 퍼칭 동작</title>
+<style>
+:root{--fg:#1d1d1f;--muted:#666;--bg:#fff;--line:#bbb;--soft:#f3f3f3;--part:#333;--bar:#2f7fd6;--thr:#d9480f;--cam:#1971c2;--lid:#2b8a3e;--jaw:#7048e8;--warn:#c92a2a}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--fg:#e8e8e8;--muted:#aaa;--bg:#1b1b1d;--line:#555;--soft:#262628;--part:#ddd;--bar:#5aa9ff;--thr:#ff8a4c;--cam:#5aa9ff;--lid:#69db7c;--jaw:#b197fc;--warn:#ff6b6b}}
+:root[data-theme="dark"]{--fg:#e8e8e8;--muted:#aaa;--bg:#1b1b1d;--line:#555;--soft:#262628;--part:#ddd;--bar:#5aa9ff;--thr:#ff8a4c;--cam:#5aa9ff;--lid:#69db7c;--jaw:#b197fc;--warn:#ff6b6b}
+body{background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;line-height:1.6;margin:0;padding:16px}
+main{max-width:860px;margin:0 auto}
+h1{font-size:1.4rem;margin:.2em 0}
+h2{font-size:1.1rem;margin-top:2em;border-bottom:1px solid var(--line);padding-bottom:.2em}
+h3{font-size:1rem;margin:1.2em 0 .3em}
+.muted{color:var(--muted);font-size:.9rem}
+table{border-collapse:collapse;width:100%;font-size:.92rem}
+th,td{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+th{background:var(--soft)}
+svg{width:100%;height:auto;display:block}
+svg text{fill:var(--fg);font-size:12px}
+.wrap{overflow-x:auto}
+.box{border:1px solid var(--line);padding:8px}
+.ctrl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:6px 0}
+.ctrl input[type=range]{flex:1 1 220px}
+button{font:inherit;font-size:.9rem;padding:2px 10px}
+.read{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:.9rem}
+.read b{font-family:ui-monospace,Menlo,monospace;font-weight:500}
+ol.st{font-size:.9rem;padding-left:1.4em;margin:.4em 0}
+ol.st li{cursor:pointer}
+ol.st li.cur{font-weight:700}
+.cap{font-weight:600;min-height:1.6em}
+/* svg */
+.body{fill:var(--part)} .rail{stroke:var(--part);stroke-width:4}
+.prop{stroke:var(--part);stroke-width:3;stroke-linecap:round}
+.jaw{fill:none;stroke:var(--jaw);stroke-width:5;stroke-linejoin:round;stroke-linecap:round}
+.thr{stroke:var(--thr);stroke-width:3;fill:none} .thrh{fill:var(--thr)}
+.cone-c{fill:var(--cam);opacity:.10} .cone-l{fill:var(--lid);opacity:.18} .cone-l.hit{opacity:.45}
+.barc{fill:var(--bar)}
+.ln{stroke:var(--muted);stroke-width:1.2;fill:none} .dash{stroke-dasharray:5 4}
+.w1{fill:var(--cam)} .w2{fill:var(--thr)}
+.fbox{fill:var(--soft);stroke:var(--fg);stroke-width:1}
+.fbox.ok{stroke:var(--lid);stroke-width:2} .fbox.ng{stroke:var(--warn);stroke-width:2}
+.arr{stroke:var(--fg);stroke-width:1.2;fill:none;marker-end:url(#ah)}
+</style>
+</head>
+<body>
+<main>
+<h1>Yu & Wong 2022 — 양방향 추력 쿼드로터의 박쥐형 거꾸로 퍼칭</h1>
+<p>Pengfei Yu, KC Wong (University of Sydney), “An implementation framework for vision-based bat-like inverted perching with bi-directional thrust quadrotor”, <i>International Journal of Micro Air Vehicles</i> 14:1–12, 2022. 원문: <code>ref/yu-wong-2022-…pdf</code></p>
+<p class="muted">※ 그림은 원문 본문·그림 1–16을 바탕으로 그린 <b>개념도</b>다. 원문에 없어 그림용으로 정한 값: 목표(가지 모사) 지름 30 mm, 집게 팔의 모양·회전축·열림각, 뒤집기 축(그림에서는 피치), 뒤집기 중 고도 손실량, 동작 시간. 원문 값은 따로 표시했다.</p>
+
+<h2>1. 한눈에</h2>
+<ul>
+<li><b>집게가 기체 아래에 있다.</b> 서보 2개(LDX-218)로 움직이는 3 mm 아크릴 팔 2개(각 32 g). 정상 자세에서는 아래 물체를 잡고, 뒤집히면 위쪽 목표에 퍼칭하며, 이때 집게가 착지 기어 역할도 한다.</li>
+<li><b>퍼칭하려고 반 바퀴(180°) 뒤집는다.</b> 고정 피치 프로펠러를 역회전시키는 양방향 추력으로 뒤집힌 채 안정 비행한다.</li>
+<li><b>순서:</b> 호버 → 반 바퀴 뒤집기 → 뒤집힌 상태로 목표 아래 추적 → 오차가 임계값 이내면 집게 닫힘 → 모터 정지.</li>
+<li><b>결과:</b> 10회 중 8회 성공(80 %). 기체 1135 g. 모든 계산을 기체 위에서 처리(외부 모션캡처 없이 T265 VIO + 카메라 + 라이다).</li>
+<li><b>원문에 없는 것:</b> 매달린 동안 집게 서보의 전력, 매달린 상태에서 다시 이륙하는 방법.</li>
+</ul>
+
+<h2>2. 전체 동작</h2>
+<p class="muted">측면도. 가지 모사 목표는 화면 안쪽 방향으로 뻗은 막대(파란 원 = 단면). 원문 그림 13·15·16의 실험 순서를 따랐다.</p>
+<div class="box">
+<svg id="sc" viewBox="-520 -1480 1000 640" aria-label="전체 동작"></svg>
+<div class="cap" id="cap"></div>
+<div class="read">
+<span>자세각 <b id="rA">–</b></span>
+<span>모터 RPM (정회전=+) <b id="rR">–</b></span>
+<span>라이다 목표 감지 <b id="rL">–</b></span>
+<span>집게 <b id="rJ">–</b></span>
+<span>모터 <b id="rM">–</b></span>
+</div>
+<div class="ctrl"><button id="play" type="button">일시정지</button><input id="tt" type="range" min="0" max="15" step="0.02" value="0" aria-label="시간"><span id="tv" class="muted">0.0 s</span></div>
+<ol class="st" id="steps"></ol>
+<p class="muted">파란 부채꼴: 카메라 시야 48°. 초록 부채꼴: 라이다 시야 27° (목표가 들어오면 진해짐). 주황 화살표: 각 로터 추력 방향(기체 기준). 애니메이션 시간은 실제 시간이 아니다. 원문 비행 기록(그림 16): t = 2 s에 반 바퀴 뒤집기, t = 3–13 s 뒤집힌 상태로 호버, 이후 비전 유도.</p>
+</div>
+
+<h2>3. 반 바퀴 뒤집기와 모터 역회전</h2>
+<div class="box">
+<svg id="fl" viewBox="-260 -170 520 300" aria-label="반 바퀴 뒤집기"></svg>
+<div class="ctrl"><span class="muted">0°</span><input id="fa" type="range" min="0" max="180" step="1" value="60" aria-label="자세각"><span class="muted">180°</span></div>
+<div class="read"><span>자세각 <b id="fA">–</b></span><span>모터 RPM <b id="fR">–</b></span><span id="fT" class="muted"></span></div>
+</div>
+<table>
+<tr><th>원문 내용</th><th>설명</th></tr>
+<tr><td>방향 전환 지연</td><td>고정 피치 프로펠러는 회전 방향을 바꾸는 데 시간이 오래 걸린다. 너무 빨리 바꾸면 모터 컨트롤러가 모터 각도를 놓쳐(de-sync) 고장 날 수 있다.</td></tr>
+<tr><td>보상 전략</td><td>특이 자세(피치 또는 롤 약 90°)에 가까워지면 RPM을 0 가까이 낮춘다(피드포워드). 이미 생긴 각속도로 기체는 계속 돌고, 그동안 모터는 멈췄다가 특이 자세를 지나면 반대 방향으로 가속한다. 특이 자세 근처에서 능동 제어를 피하는 효과도 있다. 박쥐가 날개 관성을 바꿔 거꾸로 앉는 것에 대응.</td></tr>
+<tr><td>추력 차이</td><td>모터가 프레임 위에 달려 있어 정상 자세에서는 프로펠러 아래(하류)에 프레임이 있다. 같은 RPM에서 정상 자세 추력이 더 작고, 차이는 약 15 %. 그래서 정상/뒤집힘 상태의 제어기 이득을 따로 맞춘다 (위치 제어 피드백 부호 σ = +1 정상, −1 뒤집힘).</td></tr>
+</table>
+
+<h2>4. 2단계 궤적</h2>
+<div class="box">
+<svg viewBox="-20 -20 640 230" aria-label="2단계 궤적">
+<defs><marker id="ah" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="currentColor"/></marker></defs>
+<line class="ln dash" x1="0" y1="20" x2="620" y2="20"/><text x="610" y="14" text-anchor="end">목표(가지 모사) 높이</text>
+<path d="M20,170 C90,170 120,175 170,185 S260,150 290,140" fill="none" stroke="var(--cam)" stroke-width="3"/>
+<path d="M300,128 C360,120 420,110 470,80 S540,45 560,40" fill="none" stroke="var(--thr)" stroke-width="3"/>
+<circle cx="20" cy="170" r="5" class="w1"/><circle cx="290" cy="140" r="5" class="w1"/>
+<circle cx="300" cy="128" r="5" class="w2"/><circle cx="560" cy="40" r="5" class="w2"/>
+<text x="20" y="195">호버 (정상)</text>
+<text x="150" y="208">1단계: 반 바퀴 뒤집기 끝까지</text>
+<text x="275" y="160" text-anchor="end">1단계 끝</text>
+<text x="310" y="122">2단계 시작 (약간 높게)</text>
+<text x="420" y="135">2단계: 집게가 목표에 닿을 때까지</text>
+<text x="560" y="62" text-anchor="middle">파지</text>
+</svg>
+</div>
+<p class="muted">곡선 모양은 개념도. 원문: 각 구간은 9차 다항식이고, 4차 미분(snap) 제곱 적분을 최소화하는 QP 문제로 푼다(Gurobi). 위치·속도·가속도·jerk·snap 연속 조건과 최대값 제약을 둔다.</p>
+<p>원문이 든 장점 3가지</p>
+<ol>
+<li>시뮬레이션한 “가지” 바로 아래에서 퍼칭할 때, 반 바퀴 뒤집기를 끝내는 동안 가지에 부딪히지 않는다.</li>
+<li>궤적을 둘로 나누고 2단계 시작점을 약간 높게 두면, 전환 순간 고도 오차가 커져 추력 명령이 급히 올라가므로 고도 추종이 좋아진다(뒤집기 중 고도 손실 감소).</li>
+<li>마지막 단계에서 위치를 더 정확히 맞출 시간을 번다.</li>
+</ol>
+<p class="muted">향후 과제(원문): 2단계를 없애고 뒤집기와 접근을 하나의 동적 궤적으로 합치면 더 생체모방적이지만 제어기·궤적 생성·서보 명령이 훨씬 어려워진다.</p>
+
+<h2>5. 비전 유도와 판단 흐름</h2>
+<table>
+<tr><th>방향</th><th>원문 방법</th></tr>
+<tr><td>X-Y 위치</td><td>카메라 1280 × 960, 10 Hz 입력, 알고리즘 5 Hz (Raspberry Pi 4B). HSV 변환 → 색 검출 → 열림(침식+팽창)·닫힘(팽창+침식) → 모멘트로 목표 중심 → 영상 중심(640, 480)으로 보내는 P 제어. 이득 k<sub>p</sub> = −K·L<sub>lidar</sub> + b (가까울수록 이득을 줄여 진동 방지)</td></tr>
+<tr><td>요 (방향)</td><td>윤곽이 2개면(가까움) 두 직선을 맞춰 Hough 변환 각 θ의 평균, 2개보다 많으면(멂) 윤곽을 감싸는 회전 사각형의 각. ψ<sub>des</sub> = −θ. 가지가 영상에서 사각형처럼 보인다는 가정</td></tr>
+<tr><td>Z (고도)</td><td>뒤집힌 뒤에는 라이다(EVO Mini, 시야 27°)가 위를 향한다. 측정값이 유효하면 목표 고도와 비교해 새 목표 고도(P 제어 + 크기 제한 z<sub>clip</sub>). 유효하지 않으면 현재 고도 유지, X-Y로만 이동 (카메라 시야 48°보다 좁아서 목표가 처음엔 안 잡힐 수 있음)</td></tr>
+</table>
+<h3>자동 퍼칭 흐름 (원문 그림 14)</h3>
+<div class="box wrap">
+<svg viewBox="0 0 720 230" aria-label="흐름도" style="min-width:560px">
+<rect class="fbox" x="20" y="20" width="110" height="40"/><text x="75" y="45" text-anchor="middle">Hover</text>
+<rect class="fbox" x="200" y="20" width="120" height="40"/><text x="260" y="45" text-anchor="middle">Half Flip</text>
+<rect class="fbox" x="400" y="110" width="170" height="40"/><text x="485" y="135" text-anchor="middle">Automatic Perching</text>
+<rect class="fbox ng" x="600" y="110" width="100" height="40"/><text x="650" y="135" text-anchor="middle">Descend</text>
+<rect class="fbox ok" x="20" y="110" width="160" height="40"/><text x="100" y="135" text-anchor="middle">Disarm (퍼칭 성공)</text>
+<rect class="fbox ng" x="20" y="180" width="160" height="40"/><text x="100" y="205" text-anchor="middle">Descend (실패)</text>
+<path class="arr" d="M130,40 L198,40"/><text x="165" y="32" text-anchor="middle">설정 시간</text>
+<path class="arr" d="M320,40 L650,40 L650,108"/><text x="520" y="32">목표 미검출</text>
+<path class="arr" d="M300,60 L300,130 L398,130"/><text x="306" y="90">목표 검출</text>
+<path class="arr" d="M400,122 L182,122"/><text x="290" y="114" text-anchor="middle">x·y·z 오차와 z 속도 &lt; 임계값</text>
+<path class="arr" d="M440,150 L440,200 L182,200"/><text x="310" y="194" text-anchor="middle">목표를 3초 놓침</text>
+</svg>
+</div>
+
+<h2>6. 하드웨어 (원문 표 2)</h2>
+<table>
+<tr><th>부품</th><th>사양</th><th>질량</th></tr>
+<tr><td>프레임</td><td>250급 자작 쿼드로터, 모터는 프레임 위쪽 장착</td><td>300 g</td></tr>
+<tr><td>모터 · ESC · 프로펠러</td><td>T-motor KV2350 ×4, E-MAX 45A ×4, 5045 ×4 (고정 피치, 양방향)</td><td>130 + 26 + 23.2 g</td></tr>
+<tr><td>집게</td><td>서보 LDX-218 ×2 + 아크릴 팔 ×2 (3 mm, 대칭)</td><td>120 + 64 g</td></tr>
+<tr><td>계산</td><td>Raspberry Pi 4B (상위 제어·비전), Kakute F7 (하위 제어, Betaflight), SBUS 통신</td><td>46 + 10 g</td></tr>
+<tr><td>센서</td><td>T265 (VIO 자세 추정), EVO Mini 라이다, Raspberry Pi Camera V2 — 카메라·라이다는 기체 아래면</td><td>55 + 9 + 3 g</td></tr>
+<tr><td>배터리</td><td>비행 1400 mAh, 탑재물용 850 mAh</td><td>188 + 85 g</td></tr>
+<tr><td colspan="2"><b>합계</b></td><td><b>1135 g</b></td></tr>
+</table>
+
+<h2>7. 결과와 한계</h2>
+<ul>
+<li>정상 호버에서 거꾸로 퍼칭까지 10회 중 8회 성공(80 %).</li>
+<li>실패 원인(원문 논의): 비전 유도의 인식 문제(센서 잡음, 조명 변화, 모션 블러). 조명이 T265 셔터 속도·모션 블러에 영향을 주는 것이 가장 중요한 요인.</li>
+<li>T265 위치 추정은 모션캡처보다 부정확하지만, 절대 위치가 아니라 기체와 목표 사이 상대 오차로 제어하므로 동작한다.</li>
+<li>원문에 없는 것: 매달린 동안 집게 유지 전력, 매달림 상태에서 재이륙 절차.</li>
+</ul>
+
+<h2>8. 우리 구상과 비교</h2>
+<table>
+<tr><th>항목</th><th>Yu & Wong 2022</th><th>우리 구상 (김강빈, 10/18)</th></tr>
+<tr><td>발(집게) 위치</td><td>기체 아래</td><td>기체 아래</td></tr>
+<tr><td>착지 때 몸 회전</td><td>반 바퀴(180°) 뒤집은 뒤 목표 아래에서 접근 (2단계 궤적)</td><td>수직으로 몸을 돌려 바를 붙잡음 (90° / 180° 미정)</td></tr>
+<tr><td>회전 수단</td><td>프로펠러 역회전(양방향 추력) + 보상 제어</td><td>미정</td></tr>
+<tr><td>집게 닫기</td><td>서보 2개, 오차가 임계값 이내일 때 명령</td><td>수동 잠금</td></tr>
+<tr><td>매달린 동안</td><td>모터 정지. 서보 유지 전력은 원문에 없음</td><td>에너지 0</td></tr>
+<tr><td>열기·재이륙</td><td>원문에 없음</td><td>집게를 벌릴 때만 에너지</td></tr>
+</table>
+
+</main>
+<script>
+(()=>{
+const BAR=[0,1400], BR=15, DEG=Math.PI/180;
+const sm=u=>{u=Math.max(0,Math.min(1,u));return u*u*(3-2*u)};
+const STEPS=[
+ [0,2,'호버: 목표에서 조금 떨어진 곳에서 정상 자세로 호버'],
+ [2,4,'반 바퀴 뒤집기 (1단계 궤적): 90° 부근에서 RPM을 0 가까이 낮추고, 지나면 역회전'],
+ [4,6,'뒤집힌 상태로 호버: 카메라·라이다가 위를 향해 목표 검출. 2단계 시작점은 약간 높게'],
+ [6,8.5,'X-Y 추적: 목표 중심을 영상 중심으로. 라이다에 안 잡히는 동안은 고도 유지'],
+ [8.5,10.5,'Z 접근: 라이다 거리로 목표 고도까지 상승'],
+ [10.5,11.5,'위치·속도 오차가 임계값 이내 → 서보로 집게 닫힘'],
+ [11.5,12.5,'모터 정지 (Disarm) → 목표 아래에 매달림'],
+ [12.5,15,'매달림 유지 (집게 유지 전력·재이륙은 원문에 없음)']
+];
+// keyframes: t, x, y(center), angle
+const K=[[0,-150,950,0],[2,-150,950,0],[4,-150,1000,180],[5,-150,1015,180],[6,-150,1015,180],[8.5,0,1015,180],[10.5,0,1360,180],[11.5,0,1360,180],[12.5,0,1355,180],[15,0,1355,180]];
+function kf(t){for(let i=1;i<K.length;i++){if(t<=K[i][0]){const a=K[i-1],b=K[i],u=sm((t-a[0])/(b[0]-a[0]));return [a[1]+(b[1]-a[1])*u,a[2]+(b[2]-a[2])*u,a[3]+(b[3]-a[3])*u]}}const l=K[K.length-1];return [l[1],l[2],l[3]]}
+function state(t){
+  let [x,y,ang]=kf(t);
+  if(t>2&&t<4) y-=90*Math.sin(Math.PI*(t-2)/2); // 뒤집기 중 고도 손실 (그림용)
+  const on=t<11.5;
+  const rpm=on?Math.cos(ang*DEG):0;
+  const jaw=sm((t-10.5)/1);
+  // 라이다 감지: 기체 -z 방향과 목표 방향 사이 각
+  const bz=[Math.sin(ang*DEG)*1,-Math.cos(ang*DEG)]; // body -z in world (x,y)
+  const v=[BAR[0]-x,BAR[1]-y], d=Math.hypot(v[0],v[1]);
+  const c=(bz[0]*v[0]+bz[1]*v[1])/d;
+  const lid=ang>170&&Math.acos(Math.min(1,c))/DEG<13.5;
+  return {x,y,ang,rpm,on,jaw,lid,stage:STEPS.findIndex(s=>t>=s[0]&&t<s[1])};
+}
+// 기체 (기체 좌표: svg 단위, z 위 = -y)
+function droneSVG(st,t,opt={}){
+  const {x,y,ang,rpm,jaw}=st;
+  let s=`<g transform="translate(${x.toFixed(1)},${(-y).toFixed(1)}) rotate(${(-ang).toFixed(1)})">`;
+  if(opt.cones!==false&&ang>170){
+    const L=450,tc=Math.tan(24*DEG)*L,tl=Math.tan(13.5*DEG)*L;
+    s+=`<polygon class="cone-c" points="0,15 ${-tc},${15+L} ${tc},${15+L}"/>`;
+    s+=`<polygon class="cone-l${st.lid?' hit':''}" points="0,15 ${-tl},${15+L} ${tl},${15+L}"/>`;
+  }
+  s+=`<rect class="body" x="-50" y="-15" width="100" height="30"/>`;
+  s+=`<line class="rail" x1="-92" y1="-15" x2="92" y2="-15"/>`;
+  [-88,88].forEach((mx,i)=>{
+    s+=`<rect class="body" x="${mx-8}" y="-30" width="16" height="15"/>`;
+    const k=Math.abs(rpm)>0.05?Math.abs(Math.cos(t*35+i)):1;
+    s+=`<line class="prop" x1="${mx-63.5*k}" y1="-32" x2="${mx+63.5*k}" y2="-32"/>`;
+    if(Math.abs(rpm)>0.05){const dir=rpm>0?-1:1,l=55*rpm*rpm;const y0=rpm>0?-36:-8,y1=y0+dir*l;
+      s+=`<line class="thr" x1="${mx}" y1="${y0}" x2="${mx}" y2="${y1}"/><polygon class="thrh" points="${mx},${y1+dir*8} ${mx-5},${y1} ${mx+5},${y1}"/>`;}
+  });
+  s+=`<rect class="body" x="-6" y="15" width="12" height="6"/>`; // 카메라·라이다
+  const open=75*(1-jaw);
+  s+=`<g transform="rotate(${open.toFixed(1)} -20 15)"><polyline class="jaw" points="-20,15 -35,15 -35,60 -10,60"/></g>`;
+  s+=`<g transform="rotate(${(-open).toFixed(1)} 20 15)"><polyline class="jaw" points="20,15 35,15 35,60 10,60"/></g>`;
+  s+=`</g>`;
+  return s;
+}
+const sc=document.getElementById('sc'),tt=document.getElementById('tt'),play=document.getElementById('play'),ol=document.getElementById('steps');
+STEPS.forEach(s=>{const li=document.createElement('li');li.textContent=s[2];li.onclick=()=>{T=s[0]+.01;run=false;play.textContent='재생';draw()};ol.appendChild(li)});
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+let T=reduce?12.6:0,run=!reduce,last=null;play.textContent=run?'일시정지':'재생';
+function draw(){
+  const st=state(T);
+  let s=`<line class="ln dash" x1="-520" y1="-1400" x2="480" y2="-1400"/>`;
+  s+=`<circle class="barc" cx="${BAR[0]}" cy="${-BAR[1]}" r="${BR}"/><text x="25" y="-1420">목표 (가지 모사, 파란 테이프)</text>`;
+  s+=droneSVG(st,T);
+  sc.innerHTML=s;
+  document.getElementById('cap').textContent=st.stage>=0?STEPS[st.stage][2]:'';
+  [...ol.children].forEach((li,i)=>li.classList.toggle('cur',i===st.stage));
+  document.getElementById('rA').textContent=st.ang.toFixed(0)+'°';
+  document.getElementById('rR').textContent=st.on?(st.rpm>=0?'+':'−')+Math.abs(st.rpm).toFixed(2)+' (상대값)':'0';
+  document.getElementById('rL').textContent=st.lid?'감지':'–';
+  document.getElementById('rJ').textContent=st.jaw>=1?'닫힘':(st.jaw>0?'닫는 중':'열림');
+  document.getElementById('rM').textContent=st.on?'회전':'정지 (Disarm)';
+  tt.value=T;document.getElementById('tv').textContent=T.toFixed(1)+' s';
+}
+tt.addEventListener('input',()=>{T=+tt.value;draw()});
+play.onclick=()=>{run=!run;play.textContent=run?'일시정지':'재생';last=null};
+// 3. 뒤집기 상세
+const fl=document.getElementById('fl'),fa=document.getElementById('fa');
+function drawFl(){
+  const a=+fa.value,rpm=Math.cos(a*DEG);
+  let s=`<line class="ln dash" x1="-250" y1="0" x2="250" y2="0"/>`;
+  s+=droneSVG({x:0,y:0,ang:a,rpm,jaw:0,lid:false},0,{cones:false});
+  s+=`<line class="ln" x1="0" y1="-150" x2="0" y2="-120"/><text x="6" y="-138">세계 위쪽</text>`;
+  fl.innerHTML=s;
+  document.getElementById('fA').textContent=a+'°';
+  document.getElementById('fR').textContent=(rpm>=0?'+':'−')+Math.abs(rpm).toFixed(2);
+  document.getElementById('fT').textContent=a<80?'정회전: 추력이 기체 위쪽(+z)으로':a<=100?'특이 자세 부근: RPM ≈ 0, 이미 생긴 각속도로 계속 회전하며 모터는 역방향 준비':'역회전: 추력이 기체 아래쪽(−z), 즉 세계 위쪽으로';
+}
+fa.addEventListener('input',drawFl);
+function loop(now){const dt=last==null?0:Math.min(.05,(now-last)/1000);last=now;if(run){T+=dt;if(T>15)T=0;draw()}requestAnimationFrame(loop)}
+draw();drawFl();requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
